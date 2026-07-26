@@ -102,9 +102,13 @@ project = SEC AND labels = identityhub ORDER BY created DESC
 
 ## 9b. "Selects / **writes** a Jira project" — existing projects only (interpretation)
 
-**The ambiguity:** the brief says *"User selects / writes a Jira project from their connected workspace."* That reads two ways — either (a) two input methods for an existing project (pick it from a list, or type its key), or (b) type a key that doesn't exist and we **create** the project.
+**The ambiguity:** the brief says *"User selects / writes a Jira project from their connected workspace."* That reads two ways — either (a) writing is how you *find* an existing project, or (b) writing a key that doesn't exist means we **create** the project.
 
-**Decision: (a).** The project combobox lists the projects the account can see and also accepts a typed key — a workspace with more projects than one page, or a key you already know, both work without hunting. A key that turns out not to exist produces a clear 404 naming it.
+**Decision: (a).** The picker lists the projects the account can see, typing filters that list, and the selection must come from it.
+
+An earlier revision also let you commit an arbitrary typed key. That was removed: an input that accepts a project which may not exist reads as "create it", and we can't (see below), so the affordance was actively misleading — it deferred the failure to a 404 at submit time instead of preventing it. Constraining the choice to real projects makes the invalid state unreachable rather than merely handled.
+
+**Known limit of that choice:** the picker loads one page of 50 projects, so a workspace with more than 50 won't list them all. The fix is passing the search term to Jira's `project/search?query=` rather than filtering client-side — deliberately not built, since it adds a debounce and a request per keystroke for a case no demo workspace hits.
 
 **Why not (b) — and this is the interesting half:**
 

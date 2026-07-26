@@ -8,7 +8,7 @@ A proof-of-concept for an **N**on-**H**uman **I**dentity management platform fea
 |---|---|
 | 🔐 Sign-in | One button: "Sign in with Atlassian". No passwords, ever |
 | 🔗 Jira integration | OAuth 2.0 (3LO) with rotating refresh tokens, encrypted at rest |
-| 🎫 Finding tickets | Project picker (select **or** type a key), form → Jira issue with labels |
+| 🎫 Finding tickets | Filterable project picker, form → Jira issue with labels |
 | 🕙 Recent tickets | Last 10 filed per project, read live from Jira (no local mirror) |
 | 🤖 REST API | `POST /api/v1/findings` with per-user API keys (hashed, show-once) |
 | 📰 Blog digest (bonus) | Latest [oasis.security/blog](https://www.oasis.security/blog) post → AI summary → Jira ticket |
@@ -77,7 +77,7 @@ Notes:
 ## Using the app
 
 1. **Sign in with Atlassian** — one click, approve on the consent screen. That authenticates you *and* connects Jira; an Atlassian login that can reach several Jira sites gets a picker (switchable later).
-2. **Pick a project** — searchable dropdown of your projects; you can also *type* any project key directly, which covers workspaces with more projects than one page. Projects must already exist: IdentityHub deliberately does not request the Jira project-admin scope that creating them would need ([why](docs/DECISIONS.md)).
+2. **Pick a project** — dropdown of the projects your Jira account can see; typing filters it. The project has to already exist: IdentityHub deliberately does not request the Jira project-admin scope that creating one would need ([why](docs/DECISIONS.md)).
 3. **Report a finding** — title + description (required), severity + identity type (optional). *Fill sample* autofills a realistic NHI finding. The created issue carries the `identityhub` label plus `severity:*` / `nhi:*` labels.
 4. **Recent tickets** — the last 10 findings filed to the selected project *through this app* (UI, API, or digest), each linking into Jira. Read live from Jira via a JQL query on the `identityhub` label, so it always matches reality — there's no local copy to drift ([why](docs/DECISIONS.md)).
 5. **API keys** — create a key (shown once, stored hashed), use it from scanners/CI. A ready-to-run `curl` example is shown on creation. Full reference: [docs/API.md](docs/API.md).

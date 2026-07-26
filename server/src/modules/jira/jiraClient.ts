@@ -119,13 +119,15 @@ interface ProjectSearchResponse {
 }
 
 /**
- * Projects the user can see (Jira applies its own permission filtering).
- * One page of 50, ordered by key — plenty for a picker; the UI also accepts a
- * typed key for anything beyond it.
+ * Projects the account can see (Jira applies its own permission filtering),
+ * one page of 50 ordered by key. The picker filters this list client-side.
+ *
+ * Documented limit: a workspace with more than 50 projects will not show them
+ * all. Passing the search term through to this endpoint's `query` parameter is
+ * the fix if that ever matters (docs/DECISIONS.md #9b).
  */
-export async function searchProjects(accountId: string, query?: string) {
+export async function searchProjects(accountId: string) {
   const params = new URLSearchParams({ maxResults: '50', orderBy: 'key' });
-  if (query) params.set('query', query);
   const data = await jiraFetch<ProjectSearchResponse>(
     accountId,
     `/rest/api/3/project/search?${params.toString()}`,

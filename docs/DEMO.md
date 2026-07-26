@@ -29,8 +29,8 @@ Approve → you land signed in, with the site shown in the header card.
 
 ## 4. File a finding (2 min) — product thinking
 
-- Pick a project (searchable; note you can also *type* a key — that's the "select **or write**" in the brief).
-  - Be ready for the follow-up *"did 'write' mean create a project that doesn't exist?"*: **"I read it as two input methods, and I'd have declined the other reading anyway — creating projects needs `manage:jira-project` scope plus Jira admin rights. Asking every customer for project-administration permission so a tool can file a ticket is the over-privileging this product exists to find. It's written up in DECISIONS #9b."**
+- Pick a project — typing filters the list; the choice comes from it.
+  - Be ready for the follow-up *"the brief said select **or write** — did 'write' mean create a project?"*: **"I read writing as how you find a project, and I'd have declined the other reading anyway — creating projects needs `manage:jira-project` scope plus Jira admin rights. Asking every customer for project-administration permission so a tool can file a ticket is the over-privileging this product exists to find. I also dropped an earlier free-text option that let you commit any key: it read as 'create this', which the app can't do, so it just moved the failure to a 404 at submit. DECISIONS #9b."**
 - **Fill sample** → realistic NHI finding appears → Create. Success toast with **Open in Jira**.
 - In Jira, show: summary, formatted description with metadata footer, labels `identityhub` / `severity:*` / `nhi:*`.
   - "Labels, not custom fields — works on any customer workspace with zero admin setup. Issue type is resolved per project (Task → Bug → first standard), so team-managed and company-managed projects both just work."

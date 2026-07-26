@@ -112,9 +112,6 @@ jiraRouter.delete('/site', requireAuth, (req, res) => {
   res.status(204).end();
 });
 
-const projectsQuerySchema = z.object({ query: z.string().trim().max(100).optional() });
-
 jiraRouter.get('/projects', requireAuth, async (req, res) => {
-  const { query } = projectsQuerySchema.parse(req.query);
-  res.json(await searchProjects(req.session.accountId!, query));
+  res.json(await searchProjects(req.session.accountId!));
 });

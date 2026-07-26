@@ -1,6 +1,6 @@
 import type { ProjectDto } from '@identityhub/shared';
 import { CheckIcon, ChevronsUpDownIcon, FolderKanbanIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -13,8 +13,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-const KEY_SHAPE = /^[A-Za-z][A-Za-z0-9_]*$/;
-
 interface Props {
   projects: ProjectDto[];
   isLoading: boolean;
@@ -23,25 +21,21 @@ interface Props {
 }
 
 /**
- * "Select or write a Jira project": a combobox over the user's visible
- * projects, plus a free-text escape hatch — typing an exact key (e.g. from a
- * workspace with >50 projects) offers "Use project key …" directly.
+ * Project picker: typing filters the projects this account can see, and the
+ * selection has to come from that list.
+ *
+ * Deliberately has no free-text escape hatch. An earlier version let you
+ * commit an arbitrary typed key, which read as "create this project" — it
+ * cannot (docs/DECISIONS.md #9b), so the affordance was misleading.
  */
 export function ProjectSelect({ projects, isLoading, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
   const selected = projects.find((p) => p.key === value);
-  const typedKey = search.trim().toUpperCase();
-  const typedKeyIsNovel = useMemo(
-    () =>
-      KEY_SHAPE.test(typedKey) &&
-      !projects.some((p) => p.key.toUpperCase() === typedKey),
-    [typedKey, projects],
-  );
 
   function pick(key: string) {
-    onChange(key.toUpperCase());
+    onChange(key);
     setOpen(false);
     setSearch('');
   }
@@ -76,12 +70,12 @@ export function ProjectSelect({ projects, isLoading, value, onChange }: Props) {
       <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
         <Command>
           <CommandInput
-            placeholder="Search or type a project key…"
+            placeholder="Search projects…"
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
-            <CommandEmpty>No matching project.</CommandEmpty>
+            <CommandEmpty>No project in this workspace matches.</CommandEmpty>
             <CommandGroup>
               {projects.map((project) => (
                 <CommandItem
@@ -96,20 +90,6 @@ export function ProjectSelect({ projects, isLoading, value, onChange }: Props) {
                   <span className="ml-auto text-xs text-muted-foreground">{project.key}</span>
                 </CommandItem>
               ))}
-              {typedKeyIsNovel && (
-                <CommandItem value={`use-key-${typedKey}`} onSelect={() => pick(typedKey)}>
-                  <span className="flex flex-col">
-                    <span>
-                      Use project key <span className="font-mono font-medium">{typedKey}</span>
-                    </span>
-                    {/* Reads as "create it" otherwise — IdentityHub only files into
-                        projects that already exist (docs/DECISIONS.md #9b). */}
-                    <span className="text-xs text-muted-foreground">
-                      Must already exist in Jira
-                    </span>
-                  </span>
-                </CommandItem>
-              )}
             </CommandGroup>
           </CommandList>
         </Command>
