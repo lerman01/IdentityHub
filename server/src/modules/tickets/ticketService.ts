@@ -65,11 +65,11 @@ async function resolveIssueTypeId(accountId: string, projectKey: string): Promis
   return preferred.id;
 }
 
-/** Every ticket operation needs a chosen Jira site (for browse URLs). */
-function requireSite(accountId: string) {
+/** The account supplies the site URL that browse links are built from. */
+function requireAccount(accountId: string) {
   const account = accountRepo.findById(accountId);
-  if (!account?.site_url) {
-    throw conflict('JIRA_SITE_NOT_SELECTED', 'Choose which Jira site to use first.');
+  if (!account) {
+    throw conflict('ACCOUNT_NOT_FOUND', 'Your account no longer exists. Please sign in.');
   }
   return account;
 }
@@ -80,7 +80,7 @@ export const ticketService = {
     input: CreateFindingInput,
     source: TicketSource,
   ): Promise<CreatedTicketDto> {
-    const account = requireSite(accountId);
+    const account = requireAccount(accountId);
     const issueTypeId = await resolveIssueTypeId(accountId, input.projectKey);
 
     const fields: Record<string, unknown> = {
@@ -106,7 +106,7 @@ export const ticketService = {
    * the same list. Credentials, connections, and API keys remain per-user.
    */
   async listRecent(accountId: string, projectKey: string, limit = 10): Promise<TicketDto[]> {
-    const account = requireSite(accountId);
+    const account = requireAccount(accountId);
     const issues = await searchAppIssues(accountId, projectKey, limit);
 
     return issues.map((issue) => ({

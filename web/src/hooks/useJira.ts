@@ -1,35 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AccountDto, JiraSiteOption } from '@identityhub/shared';
+import { useMutation } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { ME_KEY } from './useAuth';
 
-/** Jira sites this account's Atlassian login can reach — drives the picker. */
-export function useJiraSites(enabled: boolean) {
-  return useQuery({
-    queryKey: ['jira', 'sites'],
-    queryFn: () => api.get<JiraSiteOption[]>('/api/jira/sites'),
-    enabled,
-  });
-}
-
-export function useSelectSite() {
-  const queryClient = useQueryClient();
+/**
+ * Switching Jira site means re-running Atlassian's consent screen, because the
+ * grant is site-scoped and Atlassian owns the choice (docs/DECISIONS.md #2c).
+ *
+ * So: end the session, then restart the OAuth flow. `/oauth/start` sends
+ * `prompt=consent`, which guarantees the site chooser appears again.
+ */
+export function useSwitchSite() {
   return useMutation({
-    mutationFn: (cloudId: string) => api.post<AccountDto>('/api/jira/site', { cloudId }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ME_KEY }),
-  });
-}
-
-/** "Switch Jira site" — stays signed in, drops the current choice. */
-export function useClearSite() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.delete<void>('/api/jira/site'),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ME_KEY });
-      // Projects and tickets belong to the old site.
-      void queryClient.invalidateQueries({ queryKey: ['jira', 'projects'] });
-      void queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    mutationFn: async () => {
+      await api.post<void>('/api/auth/logout');
+      window.location.href = '/api/jira/oauth/start';
     },
   });
 }

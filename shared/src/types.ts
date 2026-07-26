@@ -15,13 +15,6 @@ export interface ApiErrorBody {
   };
 }
 
-/** A Jira site the account may pick when its Atlassian login can access several. */
-export interface JiraSiteOption {
-  cloudId: string;
-  name: string;
-  url: string;
-}
-
 /**
  * The signed-in account. Identity comes from Atlassian — there is no separate
  * app user, so `email` and `displayName` are whatever Jira reports (either can
@@ -31,8 +24,11 @@ export interface AccountDto {
   id: string;
   email: string | null;
   displayName: string | null;
-  /** Null while an account with several Jira sites has yet to pick one. */
-  site: { name: string; url: string } | null;
+  /**
+   * The Jira site this account authorized. Always present: the Atlassian grant
+   * is site-scoped, chosen on Atlassian's consent screen at sign-in.
+   */
+  site: { name: string; url: string };
 }
 
 /** Response of GET /api/auth/me — `account` is null while signed out. */

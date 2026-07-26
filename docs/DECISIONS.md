@@ -38,6 +38,20 @@ It also deletes a large amount of security-sensitive surface: no password hashin
 
 **Alternative:** Per-user Atlassian API tokens (paste email + token). Frictionless to run and fine for scripts, but it makes the platform a vault of long-lived, broadly-scoped credentials — the exact anti-pattern an NHI security product exists to fight.
 
+## 2c. Resource-level grants: Atlassian owns the site choice, so this app has no site picker
+
+**The mechanic:** an Atlassian OAuth app is registered with either *account-level* or *resource-level* grants. This app uses **resource-level**, which means the consent screen shows a **"Use app on → Choose a site"** dropdown and states *"Grant the app access to your data only in the selected site."* The issued token is scoped to that one site, and `GET /oauth/token/accessible-resources` returns **only** it.
+
+**Decision:** accept the single granted site at sign-in and store it with the account. There is no in-app site list, no "select a site" step, and no `select-site` callback outcome.
+
+**Why this is a decision and not laziness:** an earlier revision *did* have a picker, and it was broken by construction — it asked Atlassian which sites the token could reach, got exactly one answer, and rendered a list containing the site you already had. "Switch site" cleared the choice and then re-offered the same single option. The feature could never work, because the premise (a token that spans sites) is false under resource-level grants.
+
+**Switching sites** therefore means re-running consent, which is where Atlassian's own picker lives. The button signs out and restarts `/oauth/start`; because we send `prompt=consent`, the site chooser reliably reappears. Re-consenting with the same Atlassian identity updates the existing account row in place — same account, same API keys, new site — which is asserted by a test.
+
+**Why not switch the app to account-level grants** (which would make a real in-app picker possible)? Because resource-level is the **better security posture**, and it matches the rest of this project: the token can only touch the one site the user deliberately authorized, not every Jira they happen to have access to. Trading that for the convenience of not re-consenting would be the wrong direction for a product about over-privileged credentials. It would also require reconfiguring the Atlassian app and re-consent from every user.
+
+**Consequence in the schema:** `accounts.cloud_id` / `site_url` / `site_name` are `NOT NULL`, and `AccountDto.site` is non-nullable. A signed-in account always has exactly one site — the "authenticated but no site yet" state simply doesn't exist.
+
 ## 3. Multi-tenancy: tenant = Atlassian account
 
 **Decision:** Each account owns its Jira tokens, chosen site, and API keys. Every owned row carries `account_id`; **every repository query filters on it**; API keys resolve to their owning account; sessions isolate browsers; the client cache is wiped on logout.

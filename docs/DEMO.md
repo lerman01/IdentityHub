@@ -21,7 +21,9 @@ One button does authentication *and* Jira access. Talking points while the conse
 - "OAuth 2.0 three-legged flow: the server never sees Atlassian credentials, access is limited to four scopes, and the user can revoke from Atlassian at any time."
 - "The `state` parameter is single-use and session-bound — CSRF protection on the flow itself."
 
-Approve → you land signed in, with the site shown in the header card.
+Pick a site, approve → you land signed in, with the site shown in the card.
+
+- "Notice Atlassian asked *which site*. That's a resource-level grant — the token can only touch the site you picked, not every Jira you can reach. It's the least-privilege option, so I kept it, and it means the app has no site picker of its own: switching sites re-runs consent, because Atlassian owns that choice."
 
 - "Access tokens live an hour; refresh tokens *rotate* on every use. Refreshes are serialized per account so a race can't burn the rotation. Tokens are AES-256-GCM encrypted at rest and never reach the browser."
 - "The session is still server-side and revocable — I deliberately did *not* put the Atlassian token in a cookie. It expires hourly, it can't be revoked from our side, and validating it per request would couple our uptime to Atlassian's."
@@ -68,6 +70,8 @@ Approve → you land signed in, with the site shown in the header card.
 | Why OAuth over API tokens? | DECISIONS #2b — tokens make us a vault of long-lived credentials, the anti-pattern an NHI product fights |
 | Doesn't SSO force every user to have a Jira seat? | Yes — accepted for the POC, and exactly why production is org-level tenancy with a real IdP (DECISIONS #2, #3) |
 | Why keep a sessions table if you have OAuth? | DECISIONS #5 — token expiry, rotation races, and revocability |
+| Why can't I switch Jira site inside the app? | DECISIONS #2c — resource-level grants scope the token to one site; Atlassian owns the choice |
+| Does logout revoke the Atlassian token? | No — 3LO has no revoke endpoint, and revoking would break the user's API keys and digest job. Users revoke in Atlassian → Connected apps |
 | What happens when the access token expires mid-request? | [ARCHITECTURE.md](ARCHITECTURE.md) token lifecycle — proactive refresh + 401 retry + per-user lock |
 | How is a second user's data isolated? | DECISIONS #3 — `user_id` on every query; tests assert it |
 | Why SQLite / no ORM? | DECISIONS #4 |

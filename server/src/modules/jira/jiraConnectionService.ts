@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import type { Session, SessionData } from 'express-session';
-import type { AccountDto, JiraSiteOption, SessionDto } from '@identityhub/shared';
+import type { AccountDto, SessionDto } from '@identityhub/shared';
 import { accountRepo, type AccountRow } from '../../db/repositories/accountRepo.js';
 import { decryptSecret, encryptSecret } from '../../lib/crypto.js';
-import { AppError, badRequest, conflict } from '../../lib/errors.js';
+import { AppError, conflict } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import {
   buildAuthorizeUrl,
@@ -31,7 +31,6 @@ type AppSession = Session & Partial<SessionData>;
  */
 export type CallbackResult =
   | { kind: 'signed-in'; accountId: string }
-  | { kind: 'select-site'; accountId: string }
   | { kind: 'denied' }
   | { kind: 'error'; reason: string };
 
@@ -40,7 +39,8 @@ export function toAccountDto(row: AccountRow): AccountDto {
     id: row.id,
     email: row.email,
     displayName: row.display_name,
-    site: row.site_url && row.site_name ? { name: row.site_name, url: row.site_url } : null,
+    // Always present: the grant is site-scoped, so signing in is what sets it.
+    site: { name: row.site_name, url: row.site_url },
   };
 }
 
@@ -53,9 +53,14 @@ export function startOAuth(session: AppSession): string {
 }
 
 /**
- * Completes sign-in. Identity comes from Jira's /myself on the first site the
- * token can reach — the Atlassian account id it returns is global, so it
- * identifies the person regardless of which site was used to look it up.
+ * Completes sign-in.
+ *
+ * The Atlassian app uses **resource-level grants**, so the user chooses which
+ * Jira site to authorize on Atlassian's own consent screen and the resulting
+ * token is scoped to exactly that site — `accessible-resources` returns it and
+ * nothing else. That is why this app has no site picker of its own: Atlassian
+ * owns that choice, and switching sites means re-consenting (docs/DECISIONS.md
+ * #2c).
  */
 export async function handleCallback(
   session: AppSession,
@@ -75,70 +80,39 @@ export async function handleCallback(
   if (!query.code) return { kind: 'error', reason: 'missing-code' };
 
   const tokens = await exchangeCode(query.code);
-  const sites = (await fetchAccessibleResources(tokens.accessToken)).map((r) => ({
-    cloudId: r.id,
-    name: r.name,
-    url: r.url,
-  }));
+  const granted = (await fetchAccessibleResources(tokens.accessToken))[0];
 
-  if (sites.length === 0) return { kind: 'error', reason: 'no-sites' };
+  // No site means the grant authorized nothing usable — e.g. an Atlassian
+  // account with no Jira site at all.
+  if (!granted) return { kind: 'error', reason: 'no-sites' };
 
-  const myself = await fetchMyself(sites[0]!.cloudId, tokens.accessToken);
+  const myself = await fetchMyself(granted.id, tokens.accessToken);
   const account = accountRepo.upsertFromAtlassian({
     atlassianAccountId: myself.accountId,
     email: myself.emailAddress ?? null,
     displayName: myself.displayName ?? null,
+    cloudId: granted.id,
+    siteUrl: granted.url,
+    siteName: granted.name,
     accessTokenEnc: encryptSecret(tokens.accessToken),
     refreshTokenEnc: encryptSecret(tokens.refreshToken),
     accessTokenExpiresAt: tokens.expiresAt,
   });
 
-  // A single site needs no ceremony; several means the account picks one next.
-  if (sites.length === 1) {
-    accountRepo.setSite(account.id, {
-      cloudId: sites[0]!.cloudId,
-      siteUrl: sites[0]!.url,
-      siteName: sites[0]!.name,
-    });
-  }
-
-  logger.info({ accountId: account.id, sites: sites.length }, 'Signed in with Atlassian');
-  return sites.length === 1
-    ? { kind: 'signed-in', accountId: account.id }
-    : { kind: 'select-site', accountId: account.id };
+  logger.info({ accountId: account.id, site: granted.url }, 'Signed in with Atlassian');
+  return { kind: 'signed-in', accountId: account.id };
 }
 
-// ── Session / site management ─────────────────────────────────────────────────
+// ── Session ───────────────────────────────────────────────────────────────────
 
 export function getSession(accountId: string | undefined): SessionDto {
   const row = accountId ? accountRepo.findById(accountId) : undefined;
   return { account: row ? toAccountDto(row) : null };
 }
 
-/** Sites this account's Atlassian login can reach — drives the site picker. */
-export async function listSites(accountId: string): Promise<JiraSiteOption[]> {
-  const { accessToken } = await getCloudContext(accountId, { requireSite: false });
-  return (await fetchAccessibleResources(accessToken)).map((r) => ({
-    cloudId: r.id,
-    name: r.name,
-    url: r.url,
-  }));
-}
-
-export async function selectSite(accountId: string, cloudId: string): Promise<AccountDto> {
-  const site = (await listSites(accountId)).find((s) => s.cloudId === cloudId);
-  if (!site) throw badRequest('That site is not one your Atlassian account can access.');
-
-  accountRepo.setSite(accountId, { cloudId, siteUrl: site.url, siteName: site.name });
-  logger.info({ accountId, site: site.url }, 'Jira site selected');
-  return toAccountDto(accountRepo.findById(accountId)!);
-}
-
-/** Drops the site choice but keeps the account signed in. */
-export function clearSite(accountId: string): void {
-  accountRepo.clearSite(accountId);
-  logger.info({ accountId }, 'Jira site cleared');
-}
+// Note: there is no listSites/selectSite/clearSite. With resource-level grants
+// the token reaches exactly one site, so an in-app picker had nothing to offer;
+// changing site means re-running consent (docs/DECISIONS.md #2c).
 
 // ── Token management ──────────────────────────────────────────────────────────
 
@@ -167,11 +141,8 @@ export interface CloudContext {
   accessToken: string;
 }
 
-function contextFrom(row: AccountRow, accessToken: string, requireSite: boolean): CloudContext {
-  if (requireSite && !row.cloud_id) {
-    throw conflict('JIRA_SITE_NOT_SELECTED', 'Choose which Jira site to use first.');
-  }
-  return { cloudId: row.cloud_id ?? '', siteUrl: row.site_url ?? '', accessToken };
+function contextFrom(row: AccountRow, accessToken: string): CloudContext {
+  return { cloudId: row.cloud_id, siteUrl: row.site_url, accessToken };
 }
 
 /**
@@ -183,21 +154,19 @@ function contextFrom(row: AccountRow, accessToken: string, requireSite: boolean)
  * "valid-looking" token, pass the token that failed: if the stored one is
  * still identical it gets force-refreshed; if another request already rotated
  * it, the newer token is returned without an extra refresh.
- * @param options.requireSite Set false for calls that work before a site is
- * chosen (listing accessible sites).
  */
 export async function getCloudContext(
   accountId: string,
-  options: { staleToken?: string; requireSite?: boolean } = {},
+  options: { staleToken?: string } = {},
 ): Promise<CloudContext> {
-  const { staleToken, requireSite = true } = options;
+  const { staleToken } = options;
   const row = accountRepo.findById(accountId);
   if (!row) throw conflict('ACCOUNT_NOT_FOUND', 'Your account no longer exists. Please sign in.');
 
   const current = decryptSecret(row.access_token_enc);
   const looksFresh = row.access_token_expires_at - Date.now() > EXPIRY_MARGIN_MS;
   if (looksFresh && current !== staleToken) {
-    return contextFrom(row, current, requireSite);
+    return contextFrom(row, current);
   }
 
   return withAccountLock(accountId, async () => {
@@ -210,7 +179,7 @@ export async function getCloudContext(
     const stored = decryptSecret(fresh.access_token_enc);
     const storedIsFresh = fresh.access_token_expires_at - Date.now() > EXPIRY_MARGIN_MS;
     if (storedIsFresh && stored !== staleToken) {
-      return contextFrom(fresh, stored, requireSite);
+      return contextFrom(fresh, stored);
     }
 
     let rotated: OAuthTokens;
@@ -236,6 +205,6 @@ export async function getCloudContext(
     });
     logger.debug({ accountId }, 'Jira access token refreshed');
 
-    return contextFrom(fresh, rotated.accessToken, requireSite);
+    return contextFrom(fresh, rotated.accessToken);
   });
 }

@@ -24,8 +24,8 @@ const VALID_BODY = {
   foundBy: 'nightly-scan',
 };
 
-function makeUserWithKey(options: { withSite?: boolean } = {}) {
-  const user = createTestAccount(options);
+function makeUserWithKey() {
+  const user = createTestAccount();
   const key = apiKeyService.create(user.id, 'test-key').key;
   return { user, key };
 }
@@ -70,16 +70,6 @@ describe('POST /api/v1/findings', () => {
     const fields = (res.body.error.details as Array<{ field: string }>).map((d) => d.field);
     expect(fields).toContain('title');
     expect(fields).toContain('description');
-  });
-
-  it('409s when the key owner has not chosen a Jira site', async () => {
-    const { key } = makeUserWithKey({ withSite: false });
-    const res = await request(app)
-      .post('/api/v1/findings')
-      .set('Authorization', `Bearer ${key}`)
-      .send(VALID_BODY);
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('JIRA_SITE_NOT_SELECTED');
   });
 
   it('201s and returns the issue reference on the happy path', async () => {
@@ -133,15 +123,6 @@ describe('GET /api/v1/findings', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0]).toMatchObject({ issueKey: 'SEC-7', source: 'api', projectKey: 'SEC' });
     expect(jiraClient.searchAppIssues).toHaveBeenCalledWith(user.id, 'SEC', 5);
-  });
-
-  it('409s when the key owner has not chosen a Jira site', async () => {
-    const { key } = makeUserWithKey({ withSite: false });
-    const res = await request(app)
-      .get('/api/v1/findings?projectKey=SEC')
-      .set('Authorization', `Bearer ${key}`);
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('JIRA_SITE_NOT_SELECTED');
   });
 
   it('validates the query', async () => {

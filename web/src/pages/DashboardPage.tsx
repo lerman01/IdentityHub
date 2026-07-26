@@ -19,10 +19,6 @@ function useSignInToast() {
 
     if (flag === 'signed-in') {
       toast.success('Signed in', { description: 'You can start filing findings.' });
-    } else if (flag === 'select-site') {
-      toast.info('Choose a Jira site', {
-        description: 'Your Atlassian account can reach more than one.',
-      });
     }
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
@@ -52,9 +48,8 @@ export function DashboardPage() {
   useSignInToast();
   const session = useSession();
   const account = session.data?.account ?? null;
-  const hasSite = Boolean(account?.site);
 
-  const projects = useJiraProjects(hasSite);
+  const projects = useJiraProjects(Boolean(account));
   const [projectKey, setProjectKey] = useSelectedProject(account?.id);
 
   // A single-project workspace needs no picking ceremony.
@@ -68,10 +63,10 @@ export function DashboardPage() {
     <div className="min-h-screen bg-muted/40">
       <AppHeader />
       <main className="mx-auto max-w-5xl space-y-6 p-4 py-8">
-        {account && <JiraSiteCard account={account} />}
-
-        {hasSite && (
+        {account && (
           <>
+            <JiraSiteCard account={account} />
+
             <ProjectSelect
               projects={projects.data ?? []}
               isLoading={projects.isLoading}

@@ -62,22 +62,25 @@ sequenceDiagram
     U->>A: GET /api/jira/oauth/start (no session needed)
     A->>A: state = random, bound to session (single-use)
     A-->>U: 302 to consent screen (scopes + state)
-    U->>AT: approve access
+    U->>AT: choose a Jira site + approve access
     AT-->>U: 302 callback?code&state
     U->>A: GET /api/jira/oauth/callback
     A->>A: verify + consume state (CSRF)
     A->>AT: exchange code (client id + secret)
     AT-->>A: access token (~1h) + rotating refresh token
     A->>JA: GET /oauth/token/accessible-resources
-    JA-->>A: sites + cloudIds
-    A->>JA: GET /rest/api/3/myself (first site)
+    JA-->>A: the one granted site (resource-level grant)
+    A->>JA: GET /rest/api/3/myself
     JA-->>A: atlassian accountId + email
-    A->>A: upsert account by accountId,<br/>encrypt tokens (AES-256-GCM) → SQLite
-    A->>A: session.accountId = account.id
-    A-->>U: 302 back to the app (?jira=signed-in | select-site)
+    A->>A: upsert account by accountId (identity + site),<br/>encrypt tokens (AES-256-GCM) → SQLite
+    A->>A: regenerate session id, then set accountId
+    A-->>U: 302 back to the app (?jira=signed-in)
 ```
 
-The Atlassian `accountId` is global across sites, so looking it up via the first accessible site identifies the person regardless of which Jira they end up using. One site is selected automatically; several means the account picks one next (and can switch later).
+Two things worth noting in that trace:
+
+- **The site is chosen on Atlassian's screen, not ours.** The app uses resource-level grants, so the token is scoped to one site and `accessible-resources` returns only it. There is no in-app site picker, and switching sites means re-consenting ([DECISIONS #2c](DECISIONS.md)).
+- **Identity comes from `/myself`, and the `accountId` it returns is global** — not site-specific — so it identifies the person no matter which Jira they authorized.
 
 ### Token lifecycle
 

@@ -45,11 +45,10 @@ beforeEach(() => {
 });
 
 describe('ticketService.createFinding', () => {
-  it('requires a chosen Jira site', async () => {
-    const user = createTestAccount({ withSite: false });
-    await expect(ticketService.createFinding(user.id, findingInput(), 'ui')).rejects.toMatchObject({
-      code: 'JIRA_SITE_NOT_SELECTED',
-    });
+  it('rejects an account that no longer exists', async () => {
+    await expect(
+      ticketService.createFinding('deleted-account-id', findingInput(), 'ui'),
+    ).rejects.toMatchObject({ code: 'ACCOUNT_NOT_FOUND' });
   });
 
   it('creates an issue with the right type, ADF description, and labels', async () => {
@@ -113,10 +112,9 @@ describe('ticketService.createFinding', () => {
 });
 
 describe('ticketService.listRecent', () => {
-  it('requires a chosen Jira site', async () => {
-    const user = createTestAccount({ withSite: false });
-    await expect(ticketService.listRecent(user.id, 'SEC')).rejects.toMatchObject({
-      code: 'JIRA_SITE_NOT_SELECTED',
+  it('rejects an account that no longer exists', async () => {
+    await expect(ticketService.listRecent('deleted-account-id', 'SEC')).rejects.toMatchObject({
+      code: 'ACCOUNT_NOT_FOUND',
     });
   });
 

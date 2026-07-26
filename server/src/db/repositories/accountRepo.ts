@@ -12,9 +12,10 @@ export interface AccountRow {
   atlassian_account_id: string;
   email: string | null;
   display_name: string | null;
-  cloud_id: string | null;
-  site_url: string | null;
-  site_name: string | null;
+  /** Always set: the Atlassian grant is site-scoped, so sign-in supplies these. */
+  cloud_id: string;
+  site_url: string;
+  site_name: string;
   access_token_enc: string;
   refresh_token_enc: string;
   access_token_expires_at: number;
@@ -28,37 +29,27 @@ const byEmailStmt = db.prepare('SELECT * FROM accounts WHERE email = ? COLLATE N
 
 /**
  * Called on every sign-in: creates the account the first time an Atlassian
- * identity appears, and refreshes its profile + tokens on every later login.
- * Site columns are left alone here — signIn() sets them once a site is known.
+ * identity appears, and refreshes its profile, site and tokens on every later
+ * login. The site is part of the same write because the grant is site-scoped —
+ * re-consenting for a different site is how an account moves.
  */
 const upsertStmt = db.prepare(`
   INSERT INTO accounts
-    (id, atlassian_account_id, email, display_name,
+    (id, atlassian_account_id, email, display_name, cloud_id, site_url, site_name,
      access_token_enc, refresh_token_enc, access_token_expires_at)
   VALUES
-    (@id, @atlassianAccountId, @email, @displayName,
+    (@id, @atlassianAccountId, @email, @displayName, @cloudId, @siteUrl, @siteName,
      @accessTokenEnc, @refreshTokenEnc, @accessTokenExpiresAt)
   ON CONFLICT (atlassian_account_id) DO UPDATE SET
     email = excluded.email,
     display_name = excluded.display_name,
+    cloud_id = excluded.cloud_id,
+    site_url = excluded.site_url,
+    site_name = excluded.site_name,
     access_token_enc = excluded.access_token_enc,
     refresh_token_enc = excluded.refresh_token_enc,
     access_token_expires_at = excluded.access_token_expires_at,
     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-`);
-
-const setSiteStmt = db.prepare(`
-  UPDATE accounts SET
-    cloud_id = @cloudId, site_url = @siteUrl, site_name = @siteName,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-  WHERE id = @id
-`);
-
-const clearSiteStmt = db.prepare(`
-  UPDATE accounts SET
-    cloud_id = NULL, site_url = NULL, site_name = NULL,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-  WHERE id = ?
 `);
 
 const updateTokensStmt = db.prepare(`
@@ -75,6 +66,9 @@ export const accountRepo = {
     atlassianAccountId: string;
     email: string | null;
     displayName: string | null;
+    cloudId: string;
+    siteUrl: string;
+    siteName: string;
     accessTokenEnc: string;
     refreshTokenEnc: string;
     accessTokenExpiresAt: number;
@@ -89,15 +83,6 @@ export const accountRepo = {
 
   findByEmail(email: string): AccountRow | undefined {
     return byEmailStmt.get(email) as AccountRow | undefined;
-  },
-
-  setSite(id: string, site: { cloudId: string; siteUrl: string; siteName: string }): void {
-    setSiteStmt.run({ id, ...site });
-  },
-
-  /** "Switch Jira site" — keeps the account and its tokens, drops the choice. */
-  clearSite(id: string): void {
-    clearSiteStmt.run(id);
   },
 
   updateTokens(

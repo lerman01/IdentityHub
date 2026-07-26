@@ -1,23 +1,30 @@
 import type { AccountDto } from '@identityhub/shared';
-import { CheckCircle2Icon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon } from 'lucide-react';
+import { CheckCircle2Icon, Loader2Icon, RefreshCwIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useClearSite, useJiraSites, useSelectSite } from '@/hooks/useJira';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useSwitchSite } from '@/hooks/useJira';
 
 /**
- * There is no "connect Jira" step any more — signing in with Atlassian *is*
- * connecting. This only handles which site to use, which matters solely for
- * Atlassian accounts that can reach several.
+ * Shows which Jira site this account authorized.
+ *
+ * There is no in-app site picker: the Atlassian grant is scoped to the single
+ * site chosen on Atlassian's consent screen, so switching means re-consenting
+ * (docs/DECISIONS.md #2c).
  */
 export function JiraSiteCard({ account }: { account: AccountDto }) {
-  return account.site ? <SelectedSite account={account} /> : <SitePicker />;
-}
+  const switchSite = useSwitchSite();
 
-function SelectedSite({ account }: { account: AccountDto }) {
-  const clearSite = useClearSite();
+  async function onSwitch() {
+    try {
+      await switchSite.mutateAsync();
+    } catch {
+      toast.error('Could not start the switch', {
+        description: 'Please sign out and sign in again to choose a different Jira site.',
+      });
+    }
+  }
 
   return (
     <Card>
@@ -26,14 +33,14 @@ function SelectedSite({ account }: { account: AccountDto }) {
           <CheckCircle2Icon className="size-5 text-green-600" aria-hidden />
           <div>
             <p className="text-sm font-medium">
-              {account.site!.name}{' '}
+              {account.site.name}{' '}
               <a
-                href={account.site!.url}
+                href={account.site.url}
                 target="_blank"
                 rel="noreferrer"
                 className="text-muted-foreground underline-offset-2 hover:underline"
               >
-                {account.site!.url}
+                {account.site.url}
               </a>
             </p>
             <p className="text-xs text-muted-foreground">
@@ -41,84 +48,23 @@ function SelectedSite({ account }: { account: AccountDto }) {
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => void clearSite.mutateAsync()}
-          disabled={clearSite.isPending}
-        >
-          {clearSite.isPending ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-          Switch site
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
 
-function SitePicker() {
-  const sites = useJiraSites(true);
-  const selectSite = useSelectSite();
-
-  async function choose(cloudId: string) {
-    try {
-      await selectSite.mutateAsync(cloudId);
-    } catch (err) {
-      toast.error('Could not select that site', {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    }
-  }
-
-  if (sites.isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Choose a Jira site</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-10 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (sites.isError) {
-    return (
-      <Alert variant="destructive">
-        <TriangleAlertIcon />
-        <AlertTitle>Could not load your Jira sites</AlertTitle>
-        <AlertDescription>
-          {sites.error.message}{' '}
-          <Button variant="outline" size="sm" onClick={() => void sites.refetch()}>
-            Retry
-          </Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Choose a Jira site</CardTitle>
-        <CardDescription>
-          Your Atlassian account can reach more than one Jira site. Findings will be filed to the
-          one you pick — you can switch later.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {sites.data!.map((site) => (
-          <Button
-            key={site.cloudId}
-            variant="outline"
-            className="justify-between"
-            disabled={selectSite.isPending}
-            onClick={() => void choose(site.cloudId)}
-          >
-            <span className="font-medium">{site.name}</span>
-            <span className="text-xs text-muted-foreground">{site.url}</span>
-          </Button>
-        ))}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void onSwitch()}
+              disabled={switchSite.isPending}
+            >
+              {switchSite.isPending ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
+              Switch site
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Signs you out and back in — Atlassian asks which site to authorize.
+          </TooltipContent>
+        </Tooltip>
       </CardContent>
     </Card>
   );

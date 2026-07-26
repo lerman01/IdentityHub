@@ -1,18 +1,10 @@
 import { type Request, Router } from 'express';
-import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { searchProjects } from './jiraClient.js';
-import {
-  type CallbackResult,
-  clearSite,
-  handleCallback,
-  listSites,
-  selectSite,
-  startOAuth,
-} from './jiraConnectionService.js';
+import { type CallbackResult, handleCallback, startOAuth } from './jiraConnectionService.js';
 
 export const jiraRouter = Router();
 
@@ -71,7 +63,7 @@ jiraRouter.get('/oauth/callback', async (req, res) => {
     });
 
     // Sign-in succeeded: swap in a fresh session id before trusting it.
-    if (result.kind === 'signed-in' || result.kind === 'select-site') {
+    if (result.kind === 'signed-in') {
       await elevateSession(req, result.accountId);
     }
   } catch (err) {
@@ -93,22 +85,9 @@ jiraRouter.get('/oauth/callback', async (req, res) => {
 
 // ── JSON endpoints for the app ────────────────────────────────────────────────
 
-jiraRouter.get('/sites', requireAuth, async (req, res) => {
-  res.json(await listSites(req.session.accountId!));
-});
-
-const selectSiteSchema = z.object({ cloudId: z.string().min(1).max(200) });
-
-jiraRouter.post('/site', requireAuth, async (req, res) => {
-  const { cloudId } = selectSiteSchema.parse(req.body);
-  res.json(await selectSite(req.session.accountId!, cloudId));
-});
-
-/** "Switch Jira site" — stays signed in, just drops the current choice. */
-jiraRouter.delete('/site', requireAuth, (req, res) => {
-  clearSite(req.session.accountId!);
-  res.status(204).end();
-});
+// There are no site endpoints: with resource-level grants the token reaches
+// exactly one site, so switching means re-running consent — the client signs
+// out and restarts /oauth/start (docs/DECISIONS.md #2c).
 
 jiraRouter.get('/projects', requireAuth, async (req, res) => {
   res.json(await searchProjects(req.session.accountId!));

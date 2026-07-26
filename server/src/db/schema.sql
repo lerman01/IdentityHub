@@ -6,16 +6,17 @@
 -- users table and no password to store: authorizing Jira is what creates the
 -- account (docs/DECISIONS.md #2).
 --
--- The site columns are nullable for exactly one window: an Atlassian account
--- with several Jira sites is authenticated before it has picked one.
+-- The site columns are NOT NULL because the Atlassian grant is site-scoped:
+-- the user picks a site on Atlassian's consent screen, so a signed-in account
+-- always has exactly one (docs/DECISIONS.md #2c).
 CREATE TABLE IF NOT EXISTS accounts (
   id                      TEXT PRIMARY KEY,
   atlassian_account_id    TEXT NOT NULL UNIQUE,
   email                   TEXT,
   display_name            TEXT,
-  cloud_id                TEXT,
-  site_url                TEXT,
-  site_name               TEXT,
+  cloud_id                TEXT NOT NULL,
+  site_url                TEXT NOT NULL,
+  site_name               TEXT NOT NULL,
   access_token_enc        TEXT NOT NULL,
   refresh_token_enc       TEXT NOT NULL,
   access_token_expires_at INTEGER NOT NULL,

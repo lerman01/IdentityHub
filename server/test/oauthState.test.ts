@@ -9,11 +9,13 @@ vi.mock('../src/modules/jira/atlassianOAuth.js', () => ({
   refreshTokens: vi.fn(),
 }));
 
-const { handleCallback, startOAuth } = await import(
+const { getCloudContext, handleCallback, startOAuth } = await import(
   '../src/modules/jira/jiraConnectionService.js'
 );
 const { accountRepo } = await import('../src/db/repositories/accountRepo.js');
 const atlassian = await import('../src/modules/jira/atlassianOAuth.js');
+const { AppError } = await import('../src/lib/errors.js');
+const { createTestAccount } = await import('./helpers.js');
 
 type FakeSession = Session & Partial<SessionData>;
 const fakeSession = (data: Partial<SessionData> = {}): FakeSession => data as FakeSession;
@@ -100,15 +102,42 @@ describe('successful sign-in', () => {
     expect(account.site_url).toBe('https://acme.atlassian.net');
   });
 
-  it('leaves the site unset when the login can reach several', async () => {
+  /**
+   * The Atlassian app uses resource-level grants, so accessible-resources
+   * returns the single site the user authorized on the consent screen. We take
+   * it rather than offering a picker of our own (docs/DECISIONS.md #2c).
+   */
+  it('takes the granted site, ignoring anything beyond the first', async () => {
     mockSuccessfulExchange([SITE, { ...SITE, id: 'cloud-2', name: 'Other' }], 'atl-multi');
     const session = fakeSession({ jiraOAuthState: 'good' });
 
     const result = await handleCallback(session, { code: 'c', state: 'good' });
 
-    expect(result.kind).toBe('select-site');
+    expect(result.kind).toBe('signed-in');
     const account = accountRepo.findById((result as { accountId: string }).accountId)!;
-    expect(account.cloud_id).toBeNull();
+    expect(account.cloud_id).toBe('cloud-1');
+  });
+
+  it('re-consenting for a different site moves the account to it', async () => {
+    mockSuccessfulExchange([SITE], 'atl-mover');
+    const first = await handleCallback(fakeSession({ jiraOAuthState: 'a' }), {
+      code: 'c',
+      state: 'a',
+    });
+
+    // Same Atlassian identity, different site granted the second time.
+    mockSuccessfulExchange(
+      [{ ...SITE, id: 'cloud-9', url: 'https://other.atlassian.net', name: 'Other' }],
+      'atl-mover',
+    );
+    const second = await handleCallback(fakeSession({ jiraOAuthState: 'b' }), {
+      code: 'c',
+      state: 'b',
+    });
+
+    const firstId = (first as { accountId: string }).accountId;
+    expect((second as { accountId: string }).accountId).toBe(firstId);
+    expect(accountRepo.findById(firstId)!.site_url).toBe('https://other.atlassian.net');
   });
 
   it('reuses the same account row when the same Atlassian identity signs in again', async () => {
@@ -141,5 +170,45 @@ describe('successful sign-in', () => {
 
     expect((result as { accountId: string }).accountId).toBeTruthy();
     expect(session.accountId).toBeUndefined();
+  });
+});
+
+describe('token refresh', () => {
+  it('asks the account to sign in again when the refresh token is dead', async () => {
+    const account = createTestAccount();
+    // Force the refresh path, then have Atlassian reject the rotating token —
+    // what happens when the user revokes the app in their Atlassian settings.
+    accountRepo.updateTokens(account.id, {
+      accessTokenEnc: account.access_token_enc,
+      refreshTokenEnc: account.refresh_token_enc,
+      accessTokenExpiresAt: Date.now() - 1000,
+    });
+    vi.mocked(atlassian.refreshTokens).mockRejectedValueOnce(
+      new AppError(409, 'JIRA_GRANT_INVALID', 'no longer valid'),
+    );
+
+    await expect(getCloudContext(account.id)).rejects.toMatchObject({
+      code: 'JIRA_RECONNECT_REQUIRED',
+    });
+  });
+
+  it('rotates and persists the new pair on a successful refresh', async () => {
+    const account = createTestAccount();
+    accountRepo.updateTokens(account.id, {
+      accessTokenEnc: account.access_token_enc,
+      refreshTokenEnc: account.refresh_token_enc,
+      accessTokenExpiresAt: Date.now() - 1000,
+    });
+    vi.mocked(atlassian.refreshTokens).mockResolvedValueOnce({
+      accessToken: 'rotated-access',
+      refreshToken: 'rotated-refresh',
+      expiresAt: Date.now() + 3_600_000,
+    });
+
+    const ctx = await getCloudContext(account.id);
+
+    expect(ctx.accessToken).toBe('rotated-access');
+    // Persisted, so the next request doesn't refresh again.
+    expect(accountRepo.findById(account.id)!.access_token_expires_at).toBeGreaterThan(Date.now());
   });
 });
