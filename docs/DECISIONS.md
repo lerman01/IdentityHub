@@ -129,6 +129,14 @@ An earlier revision also let you commit an arbitrary typed key. That was removed
 
 **Note:** an earlier revision retried the create without labels if a project configuration rejected the field. That was removed when #9 made labels load-bearing — an unlabelled issue would be permanently invisible to the view, so a loud failure is better than a silent ghost ticket.
 
+## 10b. Configuration is validated once, at boot, and fails fast
+
+**Decision:** `config/env.ts` parses `process.env` through a Zod schema at import time. Anything missing or malformed prints which variable and why, plus a hint on where to get it, then `process.exit(1)`. `ATLASSIAN_CLIENT_ID` and `ATLASSIAN_CLIENT_SECRET` are **required**, not optional.
+
+**Why required rather than degraded:** an earlier revision booted without Atlassian credentials and carried a `jiraOAuthConfigured` flag through the env object, the session DTO, a route guard, and a branch in the login page — so that the UI could explain what was missing. Once sign-in *became* the OAuth flow, that whole path was describing an app with no way in. One check at startup replaced four conditionals and a field on the wire.
+
+The general rule this follows: if a missing value makes the process useless, refuse to start. Don't ship a half-working mode whose only job is to apologise. Optional values (`GROQ_API_KEY`, the `DIGEST_*` set) stay optional, because the features they gate genuinely are.
+
 ## 11. Error contract: one envelope, human messages, stable codes
 
 **Decision:** Every non-2xx response is `{ error: { code, message, details? } }`. Codes are stable and machine-readable (`JIRA_NOT_CONNECTED`, `API_KEY_INVALID`, `VALIDATION_ERROR` with per-field details); messages are written for humans and say *what to do next* ("Connect your Jira workspace first", "Check that the client ID/secret and callback URL match your Atlassian app exactly"). Unexpected errors log the stack server-side and return a generic message — internals never leak. Public-API auth runs before routing, so unauthenticated callers cannot enumerate routes.

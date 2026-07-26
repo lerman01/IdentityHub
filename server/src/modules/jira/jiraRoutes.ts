@@ -53,8 +53,6 @@ function elevateSession(req: Request, accountId: string): Promise<void> {
 // into the app rather than rendering JSON at a lost user.
 
 jiraRouter.get('/oauth/start', (req, res, next) => {
-  if (!env.jiraOAuthConfigured) return res.redirect(appRedirect('error', 'not-configured'));
-
   const authorizeUrl = startOAuth(req.session);
   // Persist the state nonce before leaving for Atlassian.
   req.session.save((err) => (err ? next(err) : res.redirect(authorizeUrl)));

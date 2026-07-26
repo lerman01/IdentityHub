@@ -30,7 +30,9 @@ npm run dev      # API on :3000, web app on http://localhost:5173
 
 Open **http://localhost:5173** and click **Sign in with Atlassian**. That's the whole onboarding — your Atlassian account *is* your IdentityHub account, so there is nothing to register and no password to set.
 
-If you were given `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET`, drop them into `.env` and you're done. Otherwise register your own app — the next section walks through every click (~5 minutes). Without them the sign-in page says so explicitly rather than failing mysteriously.
+If you were given `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET`, drop them into `.env` and you're done. Otherwise register your own app — the next section walks through every click (~5 minutes).
+
+Both are **required**: signing in *is* the Atlassian OAuth flow, so the server refuses to start without them and tells you exactly which value is missing rather than booting something unusable.
 
 ---
 
@@ -70,7 +72,7 @@ Notes:
 | "Atlassian rejected the token exchange" toast | Client ID/secret typo in `.env`, or callback URL mismatch. |
 | Consent screen missing scopes / scope error | Re-check step 3 — all three scopes added under **Jira API**. |
 | "Your Atlassian account has no Jira sites" | Create a free Jira Cloud site at [atlassian.com/try](https://www.atlassian.com/try) first. |
-| Jira features disabled banner | `ATLASSIAN_CLIENT_ID`/`SECRET` missing in `.env`; restart after adding. |
+| Server exits with "Invalid environment configuration" | It names the missing variable. `ATLASSIAN_CLIENT_ID`/`SECRET` are required; add them and restart. |
 
 ---
 
@@ -132,7 +134,7 @@ All configuration lives in `.env` (see [.env.example](.env.example) for comments
 |---|---|---|
 | `SESSION_SECRET` | ✅ (generated) | Signs the session cookie |
 | `ENCRYPTION_KEY` | ✅ (generated) | AES-256-GCM key for Jira tokens at rest |
-| `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET` | for Jira features | Your OAuth app credentials |
+| `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET` | ✅ | Your OAuth app credentials — the server exits without them |
 | `ATLASSIAN_CALLBACK_URL` | defaulted | Must match the console exactly |
 | `PORT`, `APP_URL`, `DATABASE_PATH` | defaulted | Ports/paths |
 | `GROQ_API_KEY`, `DIGEST_MODEL` | optional | AI summaries for the digest (falls back to an extractive excerpt) |

@@ -37,23 +37,13 @@ export interface AccessibleResource {
   avatarUrl?: string;
 }
 
-function requireConfig(): { clientId: string; clientSecret: string } {
-  if (!env.ATLASSIAN_CLIENT_ID || !env.ATLASSIAN_CLIENT_SECRET) {
-    throw new AppError(
-      503,
-      'JIRA_NOT_CONFIGURED',
-      'Jira integration is not configured on this server: set ATLASSIAN_CLIENT_ID and ' +
-        'ATLASSIAN_CLIENT_SECRET in .env (see README → "Create your Atlassian OAuth app").',
-    );
-  }
-  return { clientId: env.ATLASSIAN_CLIENT_ID, clientSecret: env.ATLASSIAN_CLIENT_SECRET };
-}
+// The client id and secret are validated as required at boot (config/env.ts),
+// so nothing here needs to handle them being absent.
 
 export function buildAuthorizeUrl(state: string): string {
-  const { clientId } = requireConfig();
   const params = new URLSearchParams({
     audience: 'api.atlassian.com',
-    client_id: clientId,
+    client_id: env.ATLASSIAN_CLIENT_ID,
     scope: JIRA_SCOPES,
     redirect_uri: env.ATLASSIAN_CALLBACK_URL,
     state,
@@ -111,12 +101,11 @@ async function requestTokens(body: Record<string, string>, action: string): Prom
 }
 
 export function exchangeCode(code: string): Promise<OAuthTokens> {
-  const { clientId, clientSecret } = requireConfig();
   return requestTokens(
     {
       grant_type: 'authorization_code',
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: env.ATLASSIAN_CLIENT_ID,
+      client_secret: env.ATLASSIAN_CLIENT_SECRET,
       code,
       redirect_uri: env.ATLASSIAN_CALLBACK_URL,
     },
@@ -126,12 +115,11 @@ export function exchangeCode(code: string): Promise<OAuthTokens> {
 
 /** Atlassian rotates refresh tokens: every call returns a NEW pair; the old refresh token dies. */
 export function refreshTokens(refreshToken: string): Promise<OAuthTokens> {
-  const { clientId, clientSecret } = requireConfig();
   return requestTokens(
     {
       grant_type: 'refresh_token',
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: env.ATLASSIAN_CLIENT_ID,
+      client_secret: env.ATLASSIAN_CLIENT_SECRET,
       refresh_token: refreshToken,
     },
     'refresh the access token',

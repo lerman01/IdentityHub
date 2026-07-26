@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { Session, SessionData } from 'express-session';
 import type { AccountDto, JiraSiteOption, SessionDto } from '@identityhub/shared';
-import { env } from '../../config/env.js';
 import { accountRepo, type AccountRow } from '../../db/repositories/accountRepo.js';
 import { decryptSecret, encryptSecret } from '../../lib/crypto.js';
 import { AppError, badRequest, conflict } from '../../lib/errors.js';
@@ -113,10 +112,7 @@ export async function handleCallback(
 
 export function getSession(accountId: string | undefined): SessionDto {
   const row = accountId ? accountRepo.findById(accountId) : undefined;
-  return {
-    oauthConfigured: env.jiraOAuthConfigured,
-    account: row ? toAccountDto(row) : null,
-  };
+  return { account: row ? toAccountDto(row) : null };
 }
 
 /** Sites this account's Atlassian login can reach — drives the site picker. */

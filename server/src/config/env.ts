@@ -32,8 +32,15 @@ const envSchema = z.object({
         'ENCRYPTION_KEY must be 32 bytes, base64-encoded — run `npm run setup` to generate it',
     }),
 
-  ATLASSIAN_CLIENT_ID: optional(z.string()),
-  ATLASSIAN_CLIENT_SECRET: optional(z.string()),
+  // Required, not optional: signing in *is* the Atlassian OAuth flow, so an
+  // app without these credentials has no way in at all. Better to refuse to
+  // start with a clear message than to boot something unusable.
+  ATLASSIAN_CLIENT_ID: z
+    .string()
+    .min(1, 'ATLASSIAN_CLIENT_ID is required — see README → "Create your Atlassian OAuth app"'),
+  ATLASSIAN_CLIENT_SECRET: z
+    .string()
+    .min(1, 'ATLASSIAN_CLIENT_SECRET is required — see README → "Create your Atlassian OAuth app"'),
   ATLASSIAN_CALLBACK_URL: optional(z.url()),
 
   DATABASE_PATH: z.string().default('./data/identityhub.db'),
@@ -51,7 +58,12 @@ if (!parsed.success) {
   for (const issue of parsed.error.issues) {
     console.error(`  • ${issue.path.join('.') || '(env)'}: ${issue.message}`);
   }
-  console.error('\nHint: `npm run setup` creates a valid .env from .env.example.\n');
+  console.error(
+    '\nHints:\n' +
+      '  • `npm run setup` creates .env with generated SESSION_SECRET / ENCRYPTION_KEY.\n' +
+      '  • The ATLASSIAN_* values come from your Atlassian OAuth app — the README\n' +
+      '    section "Create your Atlassian OAuth app" walks through getting them.\n',
+  );
   process.exit(1);
 }
 
@@ -71,8 +83,6 @@ export const env = {
   DATABASE_PATH: path.resolve(REPO_ROOT, raw.DATABASE_PATH),
   /** Decoded AES-256 key for encrypting Jira tokens at rest. */
   encryptionKey: Buffer.from(raw.ENCRYPTION_KEY, 'base64'),
-  /** The app boots without OAuth credentials; Jira features explain what's missing. */
-  jiraOAuthConfigured: Boolean(raw.ATLASSIAN_CLIENT_ID && raw.ATLASSIAN_CLIENT_SECRET),
 };
 
 export type Env = typeof env;

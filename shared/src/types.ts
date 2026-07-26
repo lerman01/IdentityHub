@@ -35,10 +35,8 @@ export interface AccountDto {
   site: { name: string; url: string } | null;
 }
 
-/** Response of GET /api/auth/me — also usable while signed out. */
+/** Response of GET /api/auth/me — `account` is null while signed out. */
 export interface SessionDto {
-  /** False when the server has no Atlassian OAuth credentials configured. */
-  oauthConfigured: boolean;
   account: AccountDto | null;
 }
 
