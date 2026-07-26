@@ -32,21 +32,10 @@ CREATE TABLE IF NOT EXISTS jira_connections (
   updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
--- Local record of every ticket created through this app — the source of truth
--- for the "recent tickets" view (Jira itself can't answer "created by us").
-CREATE TABLE IF NOT EXISTS tickets (
-  id          TEXT PRIMARY KEY,
-  user_id     TEXT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  project_key TEXT NOT NULL,
-  issue_id    TEXT NOT NULL,
-  issue_key   TEXT NOT NULL,
-  summary     TEXT NOT NULL,
-  jira_url    TEXT NOT NULL,
-  source      TEXT NOT NULL CHECK (source IN ('ui', 'api', 'digest')),
-  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-CREATE INDEX IF NOT EXISTS idx_tickets_user_project_created
-  ON tickets (user_id, project_key, created_at DESC);
+-- Note: there is no `tickets` table by design. Jira is the only store for
+-- findings; the "recent tickets" view is a live JQL query on the "identityhub"
+-- label, so an issue deleted or renamed in Jira can never drift out of sync
+-- with a local mirror (docs/DECISIONS.md #9).
 
 -- API keys for the public REST API. Only a SHA-256 hash is stored; the hint
 -- ("ihk_…a1b2") exists purely so users can tell their keys apart.

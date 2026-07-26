@@ -12,7 +12,11 @@ const STEPS: Array<[limitSeconds: number, divisor: number, unit: Intl.RelativeTi
 
 /** "12 seconds ago", "3 minutes ago", "yesterday" — no library needed. */
 export function relativeTime(iso: string): string {
-  const seconds = (Date.parse(iso) - Date.now()) / 1000;
+  const parsed = Date.parse(iso);
+  // Timestamps now come from Jira; don't render "Invalid Date" if one surprises us.
+  if (Number.isNaN(parsed)) return 'unknown';
+
+  const seconds = (parsed - Date.now()) / 1000;
   const abs = Math.abs(seconds);
   for (const [limit, divisor, unit] of STEPS) {
     if (abs < limit) return rtf.format(Math.round(seconds / divisor), unit);

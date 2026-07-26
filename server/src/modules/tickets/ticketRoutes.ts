@@ -19,7 +19,7 @@ const recentQuerySchema = z.object({
   projectKey: z.string().trim().min(1, 'projectKey is required').max(50),
 });
 
-ticketRouter.get('/recent', (req, res) => {
+ticketRouter.get('/recent', async (req, res) => {
   const { projectKey } = recentQuerySchema.parse(req.query);
-  res.json(ticketService.listRecent(req.session.userId!, projectKey.toUpperCase(), 10));
+  res.json(await ticketService.listRecent(req.session.userId!, projectKey.toUpperCase(), 10));
 });

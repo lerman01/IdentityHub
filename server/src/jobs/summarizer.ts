@@ -19,9 +19,10 @@ export async function summarizePost(title: string, content: string): Promise<Sum
     try {
       return { text: await aiSummary(title, content), method: 'ai' };
     } catch (err) {
-      logger.warn('AI summary failed — falling back to extractive summary', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logger.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        'AI summary failed — falling back to extractive summary',
+      );
     }
   }
   return { text: extractiveSummary(content), method: 'extractive' };

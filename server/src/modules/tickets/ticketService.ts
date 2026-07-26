@@ -1,17 +1,17 @@
 import {
+  type CreatedTicketDto,
+  type CreateFindingInput,
   IDENTITY_TYPE_LABELS,
   SEVERITY_LABELS,
-  type CreateFindingInput,
-  type CreatedTicketDto,
   type TicketDto,
   type TicketSource,
 } from '@identityhub/shared';
 import { jiraConnectionRepo } from '../../db/repositories/jiraConnectionRepo.js';
-import { ticketRepo, type TicketRow } from '../../db/repositories/ticketRepo.js';
 import { textToAdf } from '../../lib/adf.js';
 import { AppError, conflict, notFound } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
-import { createIssue, getProject } from '../jira/jiraClient.js';
+import { createIssue, getProject, searchAppIssues } from '../jira/jiraClient.js';
+import { buildLabels, parseSource } from '../jira/labels.js';
 
 /**
  * The one path every ticket takes, whatever its origin (web form, public API,
@@ -23,19 +23,10 @@ import { createIssue, getProject } from '../jira/jiraClient.js';
  *   nhi:service-account), not custom fields: labels work on any Jira
  *   workspace with zero admin setup. A metadata line is also appended to the
  *   description so the information survives even where labels are hidden.
- * - Every issue gets the "identityhub" label, and a local row is the source
- *   of truth for "created via this app" (Jira itself cannot answer that).
+ * - Jira is the only store. Reads are a JQL query on the "identityhub" label
+ *   rather than a local mirror, so deletions and renames in Jira can never
+ *   drift out of sync (docs/DECISIONS.md #9).
  */
-
-const APP_LABEL = 'identityhub';
-
-function buildLabels(input: CreateFindingInput, source: TicketSource): string[] {
-  const labels = [APP_LABEL];
-  if (input.severity) labels.push(`severity:${input.severity}`);
-  if (input.identityType) labels.push(`nhi:${input.identityType}`);
-  if (source === 'digest') labels.push('nhi-blog-digest');
-  return labels;
-}
 
 function buildDescription(input: CreateFindingInput, source: TicketSource): string {
   const meta: string[] = [];
@@ -74,17 +65,22 @@ async function resolveIssueTypeId(userId: string, projectKey: string): Promise<s
   return preferred.id;
 }
 
+/** Every ticket operation needs the connected site (for URLs and API routing). */
+function requireConnection(userId: string) {
+  const connection = jiraConnectionRepo.findByUserId(userId);
+  if (!connection) {
+    throw conflict('JIRA_NOT_CONNECTED', 'Connect your Jira workspace first.');
+  }
+  return connection;
+}
+
 export const ticketService = {
   async createFinding(
     userId: string,
     input: CreateFindingInput,
     source: TicketSource,
   ): Promise<CreatedTicketDto> {
-    const connection = jiraConnectionRepo.findByUserId(userId);
-    if (!connection) {
-      throw conflict('JIRA_NOT_CONNECTED', 'Connect your Jira workspace first.');
-    }
-
+    const connection = requireConnection(userId);
     const issueTypeId = await resolveIssueTypeId(userId, input.projectKey);
 
     const fields: Record<string, unknown> = {
@@ -95,51 +91,32 @@ export const ticketService = {
       labels: buildLabels(input, source),
     };
 
-    let issue;
-    try {
-      issue = await createIssue(userId, fields);
-    } catch (err) {
-      // Rare project configs reject the labels field on create. The label is
-      // nice-to-have; the ticket is the point — retry once without it.
-      if (err instanceof AppError && err.status === 400 && /label/i.test(err.message)) {
-        logger.warn('Jira rejected labels on create — retrying without', {
-          projectKey: input.projectKey,
-        });
-        const { labels: _labels, ...withoutLabels } = fields;
-        issue = await createIssue(userId, withoutLabels);
-      } else {
-        throw err;
-      }
-    }
+    const issue = await createIssue(userId, fields);
 
     const jiraUrl = `${connection.site_url}/browse/${issue.key}`;
-    const row = ticketRepo.insert({
-      userId,
-      projectKey: input.projectKey,
-      issueId: issue.id,
-      issueKey: issue.key,
-      summary: input.title,
-      jiraUrl,
-      source,
-    });
-
-    logger.info('Finding ticket created', { issueKey: issue.key, source });
-    return { id: row.id, issueKey: issue.key, url: jiraUrl };
+    logger.info({ issueKey: issue.key, source }, 'Finding ticket created');
+    return { id: issue.id, issueKey: issue.key, url: jiraUrl };
   },
 
-  listRecent(userId: string, projectKey: string, limit = 10): TicketDto[] {
-    return ticketRepo.listRecent(userId, projectKey, limit).map(toDto);
+  /**
+   * The most recent findings this app filed to a project, read live from Jira.
+   *
+   * Because the label is the only marker, this is workspace-wide rather than
+   * per-app-user: two IdentityHub users connected to the same Jira project see
+   * the same list. Credentials, connections, and API keys remain per-user.
+   */
+  async listRecent(userId: string, projectKey: string, limit = 10): Promise<TicketDto[]> {
+    const connection = requireConnection(userId);
+    const issues = await searchAppIssues(userId, projectKey, limit);
+
+    return issues.map((issue) => ({
+      id: issue.id,
+      projectKey,
+      issueKey: issue.key,
+      summary: issue.summary,
+      jiraUrl: `${connection.site_url}/browse/${issue.key}`,
+      source: parseSource(issue.labels),
+      createdAt: issue.created,
+    }));
   },
 };
-
-function toDto(row: TicketRow): TicketDto {
-  return {
-    id: row.id,
-    projectKey: row.project_key,
-    issueKey: row.issue_key,
-    summary: row.summary,
-    jiraUrl: row.jira_url,
-    source: row.source,
-    createdAt: row.created_at,
-  };
-}

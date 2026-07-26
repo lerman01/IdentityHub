@@ -62,17 +62,33 @@ Every consequential choice in this project, with the alternatives considered and
 
 **Why no salt/KDF:** Unlike passwords, keys are 256-bit random — there is nothing low-entropy to brute-force, so a fast hash is the correct choice (and enables O(1) lookup by hash). The prefix makes leaked keys identifiable by secret scanners.
 
-## 9. "Created from this app": local table + label (scope decision)
+## 9. "Created from this app": labels only, Jira is the single store (scope decision)
 
-**Decision:** The `tickets` table records every issue created through the app (with its source: `ui`/`api`/`digest`) and drives the Recent Tickets view; each Jira issue also gets the `identityhub` label.
+**Decision:** There is **no local tickets table.** Every issue we create is tagged `identityhub` plus `source:ui` / `source:api` / `source:digest`, and the Recent Tickets view is a live JQL query:
 
-**Why:** Jira cannot answer "which issues did this app create" — labels can be edited or stripped by users, so they are traceability, not truth. The local record is authoritative, fast, and lets the view distinguish sources. Trade-off: tickets renamed/deleted in Jira afterwards aren't reflected — acceptable for a POC (a webhook subscription is the production answer).
+```
+project = SEC AND labels = identityhub ORDER BY created DESC
+```
+
+**Why:** the alternative — mirroring each created ticket into our own table — is a cache of someone else's data, and it drifts. Delete an issue in Jira and the mirror still lists it, linking to a 404. Rename it and we show a stale title. Move it and our project column is wrong. Keeping Jira as the only store makes those states unrepresentable rather than merely handled: deleted issues stop appearing, renames show the current title, no reconciliation logic exists because there is nothing to reconcile.
+
+**Trade-offs accepted, explicitly:**
+
+- **Labels are user-editable.** Strip `identityhub` in Jira and the issue drops out of the view; add it to an unrelated issue and it appears. A soft marker, not enforced provenance.
+- **The view is workspace-wide, not per-app-user.** Two IdentityHub users connected to the same Jira project see the same list, because Jira has no concept of our users. Defensible — they are looking at one shared project — and the boundaries that matter (credentials, connections, API keys) stay strictly per-user. See #3.
+- **We lose the audit record.** If someone deletes a finding in Jira, we no longer know it was ever filed. For a security product that is a genuine cost; the production answer is a write-only audit log kept *alongside* Jira reads, not a mirror feeding the UI.
+- **Availability and latency coupling.** The panel is a live Jira call, so Jira being down or rate-limiting means an empty panel rather than a stale one.
+- **Search-index lag.** Jira's search index is eventually consistent, so a just-created issue can be missing from JQL for a second or two. The UI refetches once more after a short delay so a new ticket never appears to have vanished.
+
+**Implementation note:** `POST /rest/api/3/search/jql` — the older `/rest/api/3/search` now returns 410 Gone, and the replacement returns no issue fields unless `fields` is listed explicitly. The project key is safe to interpolate into JQL because the shared schema constrains it to `/^[A-Za-z][A-Za-z0-9_]*$/`.
 
 ## 10. Jira fields: labels, not custom fields (scope decision)
 
-**Decision:** Only Title + Description are required (per the assignment). Optional Severity and Identity Type map to **labels** (`severity:high`, `nhi:service-account`), plus a human-readable metadata line in the description. Issue type is resolved per project: prefer **Task**, else **Bug**, else the first non-subtask type; if a project's configuration rejects the labels field, the create is retried once without labels.
+**Decision:** Only Title + Description are required (per the assignment). Optional Severity and Identity Type map to **labels** (`severity:high`, `nhi:service-account`), plus a human-readable metadata line in the description. Issue type is resolved per project: prefer **Task**, else **Bug**, else the first non-subtask type.
 
-**Why:** Custom fields and priority schemes require admin configuration on *each customer's* Jira — a zero-config integration must work on any workspace, team-managed or company-managed, out of the box. Labels do; they're also filterable in JQL (`labels = identityhub`).
+**Why:** Custom fields and priority schemes require admin configuration on *each customer's* Jira — a zero-config integration must work on any workspace, team-managed or company-managed, out of the box. Labels do; they're also filterable in JQL (`labels = identityhub`), which is what makes #9 possible.
+
+**Note:** an earlier revision retried the create without labels if a project configuration rejected the field. That was removed when #9 made labels load-bearing — an unlabelled issue would be permanently invisible to the view, so a loud failure is better than a silent ghost ticket.
 
 ## 11. Error contract: one envelope, human messages, stable codes
 
@@ -105,7 +121,7 @@ Every consequential choice in this project, with the alternatives considered and
 | In-process refresh lock & cron & rate limits | Single-process POC | Redis/Postgres locks, external scheduler, shared rate limiter |
 | Schema-at-boot instead of migrations | Schema is stable within the exercise | drizzle-kit / Prisma Migrate / raw SQL migrations |
 | Console-based logger | Zero deps; "no secrets logged" is verifiable in one file | pino + structured shipping, request ids |
-| No Jira webhook sync for the tickets table | Read-only view, POC scope | Subscribe to issue events, reconcile |
+| Recent-tickets panel is a live Jira query, so it depends on Jira being reachable | No mirror means no drift (#9); an empty panel beats a wrong one | Add a write-only audit log beside it, and cache reads with a short TTL |
 | `react-router` pinned to 7.11 | 7.12+ is inside a CSRF advisory range for RSC server actions — a feature this SPA doesn't use; 7.11 predates the vulnerable code entirely and audits clean | Bump to the patched major on the next dependency pass |
 | App login is email+password | Assignment asks for app login | SSO/OIDC (the session layer is unchanged) |
 

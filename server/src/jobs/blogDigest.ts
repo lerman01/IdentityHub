@@ -71,7 +71,7 @@ export async function runBlogDigest(): Promise<DigestResult> {
     };
   }
 
-  logger.info('Digest: summarizing', { post: post.title });
+  logger.info({ post: post.title }, 'Digest: summarizing');
   const summary = await summarizePost(post.title, post.text);
 
   const input = createFindingSchema.parse({

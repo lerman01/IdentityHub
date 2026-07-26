@@ -28,7 +28,12 @@ export function useCreateTicket() {
   return useMutation({
     mutationFn: (input: CreateFindingInput) => api.post<CreatedTicketDto>('/api/tickets', input),
     onSuccess: (_created, input) => {
-      void queryClient.invalidateQueries({ queryKey: ['tickets', 'recent', input.projectKey] });
+      const key = ['tickets', 'recent', input.projectKey];
+      void queryClient.invalidateQueries({ queryKey: key });
+      // Jira's search index is eventually consistent: a just-created issue can
+      // be missing from JQL results for a second or two. Refetch again shortly
+      // so the new ticket doesn't appear to be missing.
+      setTimeout(() => void queryClient.invalidateQueries({ queryKey: key }), 2500);
     },
   });
 }

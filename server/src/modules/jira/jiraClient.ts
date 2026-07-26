@@ -1,4 +1,5 @@
 import { AppError, upstreamError } from '../../lib/errors.js';
+import { APP_LABEL } from './labels.js';
 import { getCloudContext, type CloudContext } from './jiraConnectionService.js';
 
 /**
@@ -165,4 +166,58 @@ export function createIssue(
     method: 'POST',
     body: { fields },
   });
+}
+
+interface JqlSearchResponse {
+  issues?: Array<{
+    id: string;
+    key: string;
+    fields?: { summary?: string; created?: string; labels?: string[] };
+  }>;
+}
+
+export interface JiraIssueSummary {
+  id: string;
+  key: string;
+  summary: string;
+  created: string;
+  labels: string[];
+}
+
+/**
+ * Issues in a project that carry this app's label, newest first — the source
+ * of truth for the Recent Tickets view.
+ *
+ * Endpoint notes (verified against Atlassian's current docs):
+ * - POST /rest/api/3/search/jql replaces /rest/api/3/search, which now
+ *   returns 410 Gone.
+ * - `fields` must be listed explicitly; the endpoint returns no issue fields
+ *   by default.
+ * - Pagination is cursor-based (nextPageToken), but a single page of 10 is
+ *   all this view needs, so we never follow it.
+ *
+ * `projectKey` is safe to interpolate into JQL: the shared schema constrains
+ * it to /^[A-Za-z][A-Za-z0-9_]*$/, so it cannot carry quotes or operators.
+ */
+export async function searchAppIssues(
+  userId: string,
+  projectKey: string,
+  limit: number,
+): Promise<JiraIssueSummary[]> {
+  const data = await jiraFetch<JqlSearchResponse>(userId, '/rest/api/3/search/jql', {
+    method: 'POST',
+    body: {
+      jql: `project = ${projectKey} AND labels = ${APP_LABEL} ORDER BY created DESC`,
+      maxResults: limit,
+      fields: ['summary', 'created', 'labels'],
+    },
+  });
+
+  return (data.issues ?? []).map((issue) => ({
+    id: issue.id,
+    key: issue.key,
+    summary: issue.fields?.summary ?? issue.key,
+    created: issue.fields?.created ?? '',
+    labels: issue.fields?.labels ?? [],
+  }));
 }

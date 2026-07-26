@@ -6,6 +6,7 @@ vi.mock('../src/modules/jira/jiraClient.js', () => ({
   getProject: vi.fn(),
   createIssue: vi.fn(),
   searchProjects: vi.fn(),
+  searchAppIssues: vi.fn(),
   jiraFetch: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ const { ticketService } = await import('../src/modules/tickets/ticketService.js'
 const jiraClient = await import('../src/modules/jira/jiraClient.js');
 const getProject = vi.mocked(jiraClient.getProject);
 const createIssue = vi.mocked(jiraClient.createIssue);
+const searchAppIssues = vi.mocked(jiraClient.searchAppIssues);
 
 const PROJECT = {
   id: '100',
@@ -39,6 +41,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getProject.mockResolvedValue(PROJECT);
   createIssue.mockResolvedValue({ id: '9001', key: 'SEC-42' });
+  searchAppIssues.mockResolvedValue([]);
 });
 
 describe('ticketService.createFinding', () => {
@@ -65,47 +68,28 @@ describe('ticketService.createFinding', () => {
     const fields = createIssue.mock.calls[0]![1] as Record<string, never>;
     // Non-subtask "Task" preferred (id 3, not the subtask id 2 or Epic id 1).
     expect(fields.issuetype).toEqual({ id: '3' });
-    expect(fields.labels).toEqual(['identityhub', 'severity:high', 'nhi:service-account']);
-    const description = fields.description as { type: string };
+    expect(fields.labels).toEqual([
+      'identityhub',
+      'source:ui',
+      'severity:high',
+      'nhi:service-account',
+    ]);
+    const description = fields.description as unknown as { type: string };
     expect(description.type).toBe('doc');
     expect(JSON.stringify(description)).toContain('Severity: High');
   });
 
-  it('records the ticket locally as the source of truth for "recent"', async () => {
+  it('tags the entry point so the source survives in Jira', async () => {
     const user = createTestUser();
     insertFakeJiraConnection(user.id);
 
     await ticketService.createFinding(user.id, findingInput(), 'api');
-    const recent = ticketService.listRecent(user.id, 'SEC');
+    const apiLabels = (createIssue.mock.calls[0]![1] as { labels: string[] }).labels;
+    expect(apiLabels).toContain('source:api');
 
-    expect(recent).toHaveLength(1);
-    expect(recent[0]).toMatchObject({ issueKey: 'SEC-42', source: 'api', projectKey: 'SEC' });
-  });
-
-  it('scopes recent tickets by user (tenancy boundary)', async () => {
-    const alice = createTestUser();
-    const bob = createTestUser();
-    insertFakeJiraConnection(alice.id);
-
-    await ticketService.createFinding(alice.id, findingInput(), 'ui');
-
-    expect(ticketService.listRecent(alice.id, 'SEC')).toHaveLength(1);
-    expect(ticketService.listRecent(bob.id, 'SEC')).toHaveLength(0);
-  });
-
-  it('retries once without labels when a project config rejects them', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
-    createIssue
-      .mockRejectedValueOnce(new AppError(400, 'JIRA_REJECTED', "labels: Field 'labels' cannot be set"))
-      .mockResolvedValueOnce({ id: '9002', key: 'SEC-43' });
-
-    const created = await ticketService.createFinding(user.id, findingInput(), 'ui');
-
-    expect(created.issueKey).toBe('SEC-43');
-    expect(createIssue).toHaveBeenCalledTimes(2);
-    const retryFields = createIssue.mock.calls[1]![1] as Record<string, unknown>;
-    expect(retryFields.labels).toBeUndefined();
+    await ticketService.createFinding(user.id, findingInput(), 'digest');
+    const digestLabels = (createIssue.mock.calls[1]![1] as { labels: string[] }).labels;
+    expect(digestLabels).toEqual(expect.arrayContaining(['source:digest', 'nhi-blog-digest']));
   });
 
   it('maps an unknown project to a clear 404', async () => {
@@ -129,5 +113,76 @@ describe('ticketService.createFinding', () => {
     await expect(ticketService.createFinding(user.id, findingInput(), 'ui')).rejects.toMatchObject({
       code: 'JIRA_NO_ISSUE_TYPE',
     });
+  });
+});
+
+describe('ticketService.listRecent', () => {
+  it('requires a Jira connection', async () => {
+    const user = createTestUser();
+    await expect(ticketService.listRecent(user.id, 'SEC')).rejects.toMatchObject({
+      code: 'JIRA_NOT_CONNECTED',
+    });
+  });
+
+  it('maps Jira issues to tickets, reading the source back off the labels', async () => {
+    const user = createTestUser();
+    insertFakeJiraConnection(user.id);
+    searchAppIssues.mockResolvedValueOnce([
+      {
+        id: '1',
+        key: 'SEC-42',
+        summary: 'Stale service account',
+        created: '2026-07-26T09:15:12.331+0000',
+        labels: ['identityhub', 'source:api', 'severity:high'],
+      },
+    ]);
+
+    const [ticket] = await ticketService.listRecent(user.id, 'SEC');
+
+    expect(ticket).toEqual({
+      id: '1',
+      projectKey: 'SEC',
+      issueKey: 'SEC-42',
+      summary: 'Stale service account',
+      jiraUrl: 'https://example-test.atlassian.net/browse/SEC-42',
+      source: 'api',
+      createdAt: '2026-07-26T09:15:12.331+0000',
+    });
+  });
+
+  it('leaves source undefined for an issue labelled by hand in Jira', async () => {
+    const user = createTestUser();
+    insertFakeJiraConnection(user.id);
+    searchAppIssues.mockResolvedValueOnce([
+      { id: '2', key: 'SEC-7', summary: 'Tagged manually', created: '', labels: ['identityhub'] },
+    ]);
+
+    const [ticket] = await ticketService.listRecent(user.id, 'SEC');
+    expect(ticket!.source).toBeUndefined();
+  });
+
+  it('ignores an unrecognised source label rather than trusting it', async () => {
+    const user = createTestUser();
+    insertFakeJiraConnection(user.id);
+    searchAppIssues.mockResolvedValueOnce([
+      {
+        id: '3',
+        key: 'SEC-8',
+        summary: 'Spoofed label',
+        created: '',
+        labels: ['identityhub', 'source:totally-made-up'],
+      },
+    ]);
+
+    const [ticket] = await ticketService.listRecent(user.id, 'SEC');
+    expect(ticket!.source).toBeUndefined();
+  });
+
+  it('passes the requested limit through to the Jira query', async () => {
+    const user = createTestUser();
+    insertFakeJiraConnection(user.id);
+
+    await ticketService.listRecent(user.id, 'SEC', 5);
+    expect(searchAppIssues).toHaveBeenCalledWith(user.id, 'SEC', 5);
   });
 });

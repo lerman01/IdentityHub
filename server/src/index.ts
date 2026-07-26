@@ -28,11 +28,14 @@ app.listen(env.PORT, () => {
       cron.schedule(env.DIGEST_CRON, async () => {
         try {
           const result = await runBlogDigest();
-          logger.info('Scheduled digest finished', { ...result });
+          logger.info({ ...result }, 'Scheduled digest finished');
         } catch (err) {
-          logger.error('Scheduled digest failed', {
-            error: err instanceof Error ? err.message : String(err),
-          });
+          logger.error(
+            {
+              error: err instanceof Error ? err.message : String(err),
+            },
+            'Scheduled digest failed',
+          );
         }
       });
       logger.info(`Blog digest scheduled (cron: ${env.DIGEST_CRON})`);

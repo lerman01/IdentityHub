@@ -37,7 +37,7 @@ const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
 
-publicApiRouter.get('/findings', (req, res) => {
+publicApiRouter.get('/findings', async (req, res) => {
   const { projectKey, limit } = listQuerySchema.parse(req.query);
-  res.json(ticketService.listRecent(req.apiKeyAuth!.userId, projectKey, limit));
+  res.json(await ticketService.listRecent(req.apiKeyAuth!.userId, projectKey, limit));
 });

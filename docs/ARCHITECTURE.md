@@ -99,15 +99,24 @@ sequenceDiagram
     J-->>T: issue types (also validates the project → 404)
     T->>T: pick type: Task → Bug → first non-subtask
     T->>J: POST /issue (summary, ADF description, labels)
-    alt project rejects the labels field
-        T->>J: retry once without labels
-    end
     J-->>T: issue id + key
-    T->>T: INSERT local ticket row (source ui|api|digest)
     T-->>C: { id, issueKey, url }
 ```
 
-The **local `tickets` table is the source of truth** for "recent tickets created from this app" — Jira itself cannot answer that question. The `identityhub` label additionally marks our issues on the Jira side ([DECISIONS.md #9](DECISIONS.md)).
+**Jira is the only store for findings.** There is no local mirror: the `identityhub` and `source:*` labels written at create time are what let us recognise our own issues later, and the Recent Tickets view is a live JQL query against them. Nothing can drift out of sync because nothing is duplicated ([DECISIONS.md #9](DECISIONS.md) covers the trade-offs — editable labels, workspace-wide visibility, no audit record).
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant T as ticketService
+    participant J as Jira Cloud
+
+    C->>T: listRecent(userId, projectKey, 10)
+    T->>J: POST /rest/api/3/search/jql<br/>project = KEY AND labels = identityhub
+    J-->>T: issues[] (summary, created, labels)
+    T->>T: parse source:* label, build browse URLs
+    T-->>C: TicketDto[]
+```
 
 ## Data model
 
@@ -116,11 +125,12 @@ The **local `tickets` table is the source of truth** for "recent tickets created
 | `users` | App accounts (tenants) | `email` unique, `password_hash` (scrypt) |
 | `sessions` | Server-side session store | `sid`, JSON `data`, `expires_at` |
 | `jira_connections` | One Jira link per user | `cloud_id`, `site_url`, `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
-| `tickets` | Every ticket created via this app | `user_id`, `project_key`, `issue_key`, `jira_url`, `source ∈ ui/api/digest` |
 | `api_keys` | Public-API credentials | `key_hash` (SHA-256), `key_hint`, `revoked_at`, `last_used_at` |
 | `digest_state` | Digest idempotency ledger | `post_url` PK, `issue_key` |
 
-Every user-owned table carries `user_id`, and **every repository query filters on it** — that is the tenancy boundary (verified by tests).
+Note what is *absent*: there is no `tickets` table. Findings live in Jira and nowhere else (#9).
+
+Every user-owned table carries `user_id`, and **every repository query filters on it** — that is the tenancy boundary (verified by tests). The one deliberate exception is the Recent Tickets view, which is scoped by Jira project rather than by app user, because it reads from Jira.
 
 ## Security model
 

@@ -9,7 +9,7 @@ A proof-of-concept for an **N**on-**H**uman **I**dentity management platform fea
 | 🔐 App auth | Login/register, server-side sessions, per-user data isolation |
 | 🔗 Jira integration | OAuth 2.0 (3LO) with rotating refresh tokens, encrypted at rest |
 | 🎫 Finding tickets | Project picker (select **or** type a key), form → Jira issue with labels |
-| 🕙 Recent tickets | Last 10 filed per project via this app, linked into Jira |
+| 🕙 Recent tickets | Last 10 filed per project, read live from Jira (no local mirror) |
 | 🤖 REST API | `POST /api/v1/findings` with per-user API keys (hashed, show-once) |
 | 📰 Blog digest (bonus) | Latest [oasis.security/blog](https://www.oasis.security/blog) post → AI summary → Jira ticket |
 
@@ -81,7 +81,7 @@ Notes:
 1. **Connect Jira** — one click, approve on Atlassian's consent screen. Multi-site accounts get a site picker.
 2. **Pick a project** — searchable dropdown of your projects; you can also *type* any project key directly.
 3. **Report a finding** — title + description (required), severity + identity type (optional). *Fill sample* autofills a realistic NHI finding. The created issue carries the `identityhub` label plus `severity:*` / `nhi:*` labels.
-4. **Recent tickets** — the last 10 findings filed to the selected project *through this app* (UI, API, or digest), each linking into Jira. Auto-refreshes.
+4. **Recent tickets** — the last 10 findings filed to the selected project *through this app* (UI, API, or digest), each linking into Jira. Read live from Jira via a JQL query on the `identityhub` label, so it always matches reality — there's no local copy to drift ([why](docs/DECISIONS.md)).
 5. **API keys** — create a key (shown once, stored hashed), use it from scanners/CI. A ready-to-run `curl` example is shown on creation. Full reference: [docs/API.md](docs/API.md).
 
 ### The REST API in 10 seconds

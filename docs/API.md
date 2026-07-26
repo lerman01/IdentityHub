@@ -56,6 +56,8 @@ Create an NHI finding ticket in Jira.
 
 ### Responses
 
+Also note `GET` returns **409 `JIRA_NOT_CONNECTED`** if the key owner has no Jira connection, since it queries Jira live.
+
 | Status | Code | Meaning |
 |---|---|---|
 | **201** | — | Created. Body: `{ "id", "issueKey", "url" }` |
@@ -94,7 +96,7 @@ The created issue carries labels `identityhub`, `severity:high`, `nhi:service-ac
 
 ## GET /api/v1/findings
 
-List recent tickets **created through IdentityHub** by the key owner (newest first). This reads the app's own record — it is not a general Jira search.
+List recent findings **filed through IdentityHub** in a project (newest first). This is a live JQL query against the key owner's connected Jira for issues labelled `identityhub`, so it always reflects Jira's current state — deleted issues disappear, renamed ones show their current title.
 
 ### Query parameters
 
@@ -124,4 +126,4 @@ curl "http://localhost:3000/api/v1/findings?projectKey=SEC&limit=5" \
 ]
 ```
 
-`source` is `ui`, `api`, or `digest` — which entry point filed the ticket.
+`source` is `ui`, `api`, or `digest` — which entry point filed the ticket, read back from the issue's `source:*` label. It is **omitted** when an issue carries the `identityhub` label but no recognised source label (for example, one tagged by hand in Jira).

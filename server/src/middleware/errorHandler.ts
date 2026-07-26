@@ -31,15 +31,24 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
 
   if (err instanceof AppError) {
     if (err.status >= 500) {
-      logger.error(`${err.code}: ${err.message}`, { path: req.path, cause: String(err.cause ?? '') });
+      logger.error(
+        {
+          path: req.path,
+          cause: String(err.cause ?? ''),
+        },
+        `${err.code}: ${err.message}`,
+      );
     }
     return send(res, err.status, err.code, err.message, err.details);
   }
 
   // Unexpected: log the real error, return a generic message (no internals leak).
-  logger.error('Unhandled error', {
-    path: req.path,
-    error: err instanceof Error ? (err.stack ?? err.message) : String(err),
-  });
+  logger.error(
+    {
+      path: req.path,
+      error: err instanceof Error ? (err.stack ?? err.message) : String(err),
+    },
+    'Unhandled error',
+  );
   return send(res, 500, 'INTERNAL_ERROR', 'Something went wrong on our side. Please try again.');
 }

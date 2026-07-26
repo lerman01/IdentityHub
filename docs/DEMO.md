@@ -32,7 +32,8 @@ A suggested walkthrough for presenting the project, with the talking points that
 - **Fill sample** → realistic NHI finding appears → Create. Success toast with **Open in Jira**.
 - In Jira, show: summary, formatted description with metadata footer, labels `identityhub` / `severity:*` / `nhi:*`.
   - "Labels, not custom fields — works on any customer workspace with zero admin setup. Issue type is resolved per project (Task → Bug → first standard), so team-managed and company-managed projects both just work."
-- Recent Tickets panel updated — "backed by our own table, because Jira can't answer 'which issues did this app create'; the label is traceability, the table is truth."
+- Recent Tickets panel updated — "that panel is a live JQL query on the `identityhub` label, not a local copy. Jira is the only store, so there's no mirror to drift: delete the issue in Jira and it just disappears from the list."
+  - If asked about the obvious weakness: *"Labels are user-editable, so it's a soft marker — strip the label and the ticket drops out. I took that over a local mirror because a cache of someone else's data goes stale in four different ways. The production version keeps a write-only audit log beside Jira rather than a mirror feeding the UI."*
 
 ## 5. The REST API (2 min)
 
@@ -66,6 +67,8 @@ A suggested walkthrough for presenting the project, with the talking points that
 | How is a second user's data isolated? | DECISIONS #3 — `user_id` on every query; tests assert it |
 | Why SQLite / no ORM? | DECISIONS #4 |
 | What would change for production? | DECISIONS #15 table |
-| Why can't Jira tell you which tickets you created? | DECISIONS #9 |
+| How do you know which tickets your app created? | DECISIONS #9 — the `identityhub` label, queried via JQL |
+| Isn't a label editable? What if someone removes it? | DECISIONS #9 — accepted trade-off, weighed against mirror drift |
+| Two users on the same Jira project see each other's tickets? | Yes, by design — the view is workspace-scoped; credentials/keys/connections stay per-user |
 | What if two requests refresh the token simultaneously? | Rotating refresh tokens make the loser fatal — hence the per-user lock (ARCHITECTURE, token lifecycle) |
 | Where do you handle a revoked connection? | `invalid_grant` → connection dropped → `JIRA_RECONNECT_REQUIRED` → reconnect card |

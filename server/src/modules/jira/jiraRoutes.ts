@@ -6,12 +6,12 @@ import { logger } from '../../lib/logger.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { searchProjects } from './jiraClient.js';
 import {
+  type CallbackResult,
   disconnect,
   getStatus,
   handleCallback,
   selectSite,
   startOAuth,
-  type CallbackResult,
 } from './jiraConnectionService.js';
 
 export const jiraRouter = Router();
@@ -52,10 +52,13 @@ jiraRouter.get('/oauth/callback', async (req, res) => {
     });
   } catch (err) {
     const reason = err instanceof AppError ? err.code.toLowerCase() : 'unknown';
-    logger.error('OAuth callback failed', {
-      reason,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    logger.error(
+      {
+        reason,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      'OAuth callback failed',
+    );
     result = { kind: 'error', reason };
   }
 

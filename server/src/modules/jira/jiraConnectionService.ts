@@ -11,8 +11,8 @@ import {
   exchangeCode,
   fetchAccessibleResources,
   fetchMyself,
-  refreshTokens,
   type OAuthTokens,
+  refreshTokens,
 } from './atlassianOAuth.js';
 
 type AppSession = Session & Partial<SessionData>;
@@ -45,7 +45,7 @@ export async function handleCallback(
   if (query.error) return { kind: 'error', reason: 'atlassian' };
 
   if (!expectedState || !query.state || query.state !== expectedState) {
-    logger.warn('OAuth callback with missing/mismatched state', { userId });
+    logger.warn({ userId }, 'OAuth callback with missing/mismatched state');
     return { kind: 'error', reason: 'state' };
   }
   if (!query.code) return { kind: 'error', reason: 'missing-code' };
@@ -113,7 +113,7 @@ async function finalizeConnection(
     refreshTokenEnc: encryptSecret(tokens.refreshToken),
     accessTokenExpiresAt: tokens.expiresAt,
   });
-  logger.info('Jira connected', { userId, site: site.url });
+  logger.info({ userId, site: site.url }, 'Jira connected');
 }
 
 // ── Status / disconnect ───────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ export function getStatus(session: AppSession, userId: string): JiraConnectionDt
 
 export function disconnect(userId: string): void {
   jiraConnectionRepo.deleteByUserId(userId);
-  logger.info('Jira disconnected', { userId });
+  logger.info({ userId }, 'Jira disconnected');
 }
 
 // ── Token management ──────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ export async function getCloudContext(userId: string, staleToken?: string): Prom
         // The refresh token is dead (revoked/expired/stolen-and-rotated).
         // Drop the connection so the UI offers a clean reconnect.
         jiraConnectionRepo.deleteByUserId(userId);
-        logger.warn('Jira refresh token invalid — connection removed', { userId });
+        logger.warn({ userId }, 'Jira refresh token invalid — connection removed');
         throw conflict(
           'JIRA_RECONNECT_REQUIRED',
           'Your Jira authorization expired or was revoked. Please reconnect your workspace.',
@@ -219,7 +219,7 @@ export async function getCloudContext(userId: string, staleToken?: string): Prom
       refreshTokenEnc: encryptSecret(rotated.refreshToken),
       accessTokenExpiresAt: rotated.expiresAt,
     });
-    logger.debug('Jira access token refreshed', { userId });
+    logger.debug({ userId }, 'Jira access token refreshed');
 
     return { cloudId: fresh.cloud_id, siteUrl: fresh.site_url, accessToken: rotated.accessToken };
   });

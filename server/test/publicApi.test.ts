@@ -6,6 +6,7 @@ vi.mock('../src/modules/jira/jiraClient.js', () => ({
   getProject: vi.fn(),
   createIssue: vi.fn(),
   searchProjects: vi.fn(),
+  searchAppIssues: vi.fn(),
   jiraFetch: vi.fn(),
 }));
 
@@ -38,6 +39,7 @@ beforeEach(() => {
     issueTypes: [{ id: '3', name: 'Task', subtask: false }],
   });
   vi.mocked(jiraClient.createIssue).mockResolvedValue({ id: '1', key: 'SEC-7' });
+  vi.mocked(jiraClient.searchAppIssues).mockResolvedValue([]);
 });
 
 describe('POST /api/v1/findings', () => {
@@ -112,27 +114,36 @@ describe('POST /api/v1/findings', () => {
 });
 
 describe('GET /api/v1/findings', () => {
-  it('lists only the key owner\'s tickets for the project', async () => {
+  it("returns the key owner's Jira issues, uppercasing the project key", async () => {
     const { user, key } = makeUserWithKey();
     insertFakeJiraConnection(user.id);
-    await request(app)
-      .post('/api/v1/findings')
-      .set('Authorization', `Bearer ${key}`)
-      .send(VALID_BODY);
+    vi.mocked(jiraClient.searchAppIssues).mockResolvedValueOnce([
+      {
+        id: '1',
+        key: 'SEC-7',
+        summary: 'Over-privileged API key: ghcr-bot',
+        created: '2026-07-26T09:15:12.331+0000',
+        labels: ['identityhub', 'source:api'],
+      },
+    ]);
 
-    const other = makeUserWithKey();
-
-    const mine = await request(app)
-      .get('/api/v1/findings?projectKey=sec')
+    const res = await request(app)
+      .get('/api/v1/findings?projectKey=sec&limit=5')
       .set('Authorization', `Bearer ${key}`);
-    expect(mine.status).toBe(200);
-    expect(mine.body).toHaveLength(1);
-    expect(mine.body[0]).toMatchObject({ issueKey: 'SEC-7', source: 'api' });
 
-    const theirs = await request(app)
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ issueKey: 'SEC-7', source: 'api', projectKey: 'SEC' });
+    expect(jiraClient.searchAppIssues).toHaveBeenCalledWith(user.id, 'SEC', 5);
+  });
+
+  it('409s when the key owner has no Jira connection', async () => {
+    const { key } = makeUserWithKey();
+    const res = await request(app)
       .get('/api/v1/findings?projectKey=SEC')
-      .set('Authorization', `Bearer ${other.key}`);
-    expect(theirs.body).toHaveLength(0);
+      .set('Authorization', `Bearer ${key}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('JIRA_NOT_CONNECTED');
   });
 
   it('validates the query', async () => {

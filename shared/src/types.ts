@@ -50,7 +50,8 @@ export interface TicketDto {
   issueKey: string;
   summary: string;
   jiraUrl: string;
-  source: TicketSource;
+  /** Absent when the issue carries no `source:*` label (e.g. tagged by hand). */
+  source?: TicketSource;
   createdAt: string;
 }
 

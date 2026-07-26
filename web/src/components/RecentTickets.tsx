@@ -27,7 +27,7 @@ export function RecentTickets({ projectKey }: { projectKey: string | null }) {
         <CardTitle>Recent tickets</CardTitle>
         <CardDescription>
           {projectKey
-            ? `The last 10 findings filed to ${projectKey} from IdentityHub.`
+            ? `Live from Jira: the last 10 issues in ${projectKey} labelled identityhub.`
             : 'Pick a project to see its recent findings.'}
         </CardDescription>
       </CardHeader>
@@ -65,7 +65,8 @@ export function RecentTickets({ projectKey }: { projectKey: string | null }) {
 }
 
 function TicketRow({ ticket }: { ticket: TicketDto }) {
-  const badge = SOURCE_BADGES[ticket.source];
+  // Absent when an issue carries no source:* label — e.g. tagged by hand in Jira.
+  const badge = ticket.source ? SOURCE_BADGES[ticket.source] : null;
   return (
     <li>
       <a
@@ -75,8 +76,8 @@ function TicketRow({ ticket }: { ticket: TicketDto }) {
         className="group flex items-center gap-3 py-2.5"
         title={`Open ${ticket.issueKey} in Jira`}
       >
-        <Badge variant="secondary" className={badge.className}>
-          {badge.label}
+        <Badge variant="secondary" className={badge?.className ?? 'bg-muted text-muted-foreground'}>
+          {badge?.label ?? 'Jira'}
         </Badge>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium group-hover:underline">{ticket.summary}</p>
