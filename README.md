@@ -78,7 +78,7 @@ Notes:
 
 ## Using the app
 
-1. **Sign in with Atlassian** — one click, then pick which Jira site to authorize on Atlassian's consent screen. That authenticates you *and* connects Jira in one step. The token is scoped to the site you chose, so **Switch site** signs you out and back in, letting you choose a different one ([why](docs/DECISIONS.md)).
+1. **Sign in with Atlassian** — one click, then pick which Jira site to authorize on Atlassian's consent screen. That authenticates you *and* connects Jira in one step. The token is scoped to the site you chose, so using a different one means signing out and back in ([why](docs/DECISIONS.md)).
 2. **Pick a project** — dropdown of the projects your Jira account can see; typing filters it. The project has to already exist: IdentityHub deliberately does not request the Jira project-admin scope that creating one would need ([why](docs/DECISIONS.md)).
 3. **Report a finding** — title + description (required), severity + identity type (optional). *Fill sample* autofills a realistic NHI finding. The created issue carries the `identityhub` label plus `severity:*` / `nhi:*` labels.
 4. **Recent tickets** — the last 10 findings filed to the selected project *through this app* (UI, API, or digest), each linking into Jira. Read live from Jira via a JQL query on the `identityhub` label, so it always matches reality — there's no local copy to drift ([why](docs/DECISIONS.md)).

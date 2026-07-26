@@ -1,36 +1,21 @@
 import type { AccountDto } from '@identityhub/shared';
-import { CheckCircle2Icon, Loader2Icon, RefreshCwIcon } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import { CheckCircle2Icon } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useSwitchSite } from '@/hooks/useJira';
 
 /**
- * Shows which Jira site this account authorized.
+ * Shows which Jira site this account authorized. Purely informational.
  *
- * There is no in-app site picker: the Atlassian grant is scoped to the single
- * site chosen on Atlassian's consent screen, so switching means re-consenting
- * (docs/DECISIONS.md #2c).
+ * There is no site switcher: the Atlassian grant is scoped to the single site
+ * chosen on Atlassian's consent screen, so changing it means re-consenting —
+ * which is exactly what Sign out then Sign in does (docs/DECISIONS.md #2c).
+ * The hint below says so, because it is otherwise not discoverable.
  */
 export function JiraSiteCard({ account }: { account: AccountDto }) {
-  const switchSite = useSwitchSite();
-
-  async function onSwitch() {
-    try {
-      await switchSite.mutateAsync();
-    } catch {
-      toast.error('Could not start the switch', {
-        description: 'Please sign out and sign in again to choose a different Jira site.',
-      });
-    }
-  }
-
   return (
     <Card>
       <CardContent className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <CheckCircle2Icon className="size-5 text-green-600" aria-hidden />
+          <CheckCircle2Icon className="size-5 shrink-0 text-green-600" aria-hidden />
           <div>
             <p className="text-sm font-medium">
               {account.site.name}{' '}
@@ -48,23 +33,9 @@ export function JiraSiteCard({ account }: { account: AccountDto }) {
             </p>
           </div>
         </div>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void onSwitch()}
-              disabled={switchSite.isPending}
-            >
-              {switchSite.isPending ? <Loader2Icon className="animate-spin" /> : <RefreshCwIcon />}
-              Switch site
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            Signs you out and back in — Atlassian asks which site to authorize.
-          </TooltipContent>
-        </Tooltip>
+        <p className="text-xs text-muted-foreground">
+          To use a different Jira site, sign out and sign in again.
+        </p>
       </CardContent>
     </Card>
   );

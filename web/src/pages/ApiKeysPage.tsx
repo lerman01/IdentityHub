@@ -233,7 +233,7 @@ function ShowOnceDialog({
               <p className="mb-1 text-xs font-medium text-muted-foreground">
                 Try it (creates a real ticket):
               </p>
-              <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed">
+              <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs leading-relaxed whitespace-break-spaces">
                 {curlExample}
               </pre>
             </div>
