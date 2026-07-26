@@ -1,0 +1,34 @@
+{
+  "name": "identityhub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IdentityHub — NHI finding → Jira ticket integration (POC)",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev --workspace server\" \"npm:dev --workspace web\"",
+    "build": "npm run build --workspace web",
+    "start": "npm run start --workspace server",
+    "seed": "npm run seed --workspace server",
+    "digest": "npm run digest --workspace server",
+    "test": "npm run test --workspace server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^9.1.2",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.65.0"
+  }
+}

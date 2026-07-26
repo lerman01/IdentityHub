@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Runtime data (SQLite database lives here)
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Build output
+dist/
+web/dist/
+
+# Logs (incl. stray MCP tool logs)
+logs/
+*.log
+
+# Local tooling
+.claude/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.local
+
+# Test coverage
+coverage/
