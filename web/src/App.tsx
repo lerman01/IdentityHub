@@ -3,14 +3,12 @@ import { PublicOnly, RequireAuth } from '@/components/AuthGates';
 import { ApiKeysPage } from '@/pages/ApiKeysPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { LoginPage } from '@/pages/LoginPage';
-import { RegisterPage } from '@/pages/RegisterPage';
 
 export function App() {
   return (
     <Routes>
       <Route element={<PublicOnly />}>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
       </Route>
 
       <Route element={<RequireAuth />}>

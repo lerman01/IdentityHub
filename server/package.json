@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "cross-env PORT=3000 tsx watch --clear-screen=false src/index.ts",
     "start": "cross-env NODE_ENV=production tsx src/index.ts",
-    "seed": "tsx src/db/seed.ts",
     "digest": "tsx src/jobs/runDigest.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

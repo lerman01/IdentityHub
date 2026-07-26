@@ -32,7 +32,9 @@ flowchart LR
     D --> CLAUDE
 ```
 
-Three entry points — browser session, API key, digest job — all converge on the **same service layer**. A ticket is created exactly one way (`ticketService.createFinding`), whatever its origin; only the authentication differs.
+Three entry points — browser session, API key, digest script — all converge on the **same service layer**. A ticket is created exactly one way (`ticketService.createFinding`), whatever its origin; only the authentication differs.
+
+The digest is a standalone process, not a route: nothing in the API imports it ([DECISIONS #12](DECISIONS.md)).
 
 ## Layering rules
 
@@ -48,7 +50,7 @@ routes (HTTP: parse input with shared zod schemas, map to services, shape respon
 - `shared/` holds the Zod schemas and DTO types used by server **and** web — validation logic exists once ([DECISIONS.md #13](DECISIONS.md)).
 - Every non-2xx response uses one JSON envelope: `{ "error": { "code", "message", "details?" } }`.
 
-## Jira OAuth 2.0 (3LO) flow
+## Sign in with Atlassian — one flow for auth *and* Jira access
 
 ```mermaid
 sequenceDiagram
@@ -57,7 +59,7 @@ sequenceDiagram
     participant AT as auth.atlassian.com
     participant JA as api.atlassian.com
 
-    U->>A: GET /api/jira/oauth/start
+    U->>A: GET /api/jira/oauth/start (no session needed)
     A->>A: state = random, bound to session (single-use)
     A-->>U: 302 to consent screen (scopes + state)
     U->>AT: approve access
@@ -68,13 +70,14 @@ sequenceDiagram
     AT-->>A: access token (~1h) + rotating refresh token
     A->>JA: GET /oauth/token/accessible-resources
     JA-->>A: sites + cloudIds
-    alt one site
-        A->>A: encrypt tokens (AES-256-GCM) → SQLite
-    else several sites
-        A->>A: park encrypted tokens in session → site picker UI
-    end
-    A-->>U: 302 back to the app (?jira=connected)
+    A->>JA: GET /rest/api/3/myself (first site)
+    JA-->>A: atlassian accountId + email
+    A->>A: upsert account by accountId,<br/>encrypt tokens (AES-256-GCM) → SQLite
+    A->>A: session.accountId = account.id
+    A-->>U: 302 back to the app (?jira=signed-in | select-site)
 ```
+
+The Atlassian `accountId` is global across sites, so looking it up via the first accessible site identifies the person regardless of which Jira they end up using. One site is selected automatically; several means the account picks one next (and can switch later).
 
 ### Token lifecycle
 
@@ -122,9 +125,8 @@ sequenceDiagram
 
 | Table | Purpose | Notable columns |
 |---|---|---|
-| `users` | App accounts (tenants) | `email` unique, `password_hash` (scrypt) |
+| `accounts` | Atlassian identity **and** its Jira connection — the tenant | `atlassian_account_id` unique, `email`, `cloud_id`/`site_url` (nullable until a site is picked), `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
 | `sessions` | Server-side session store | `sid`, JSON `data`, `expires_at` |
-| `jira_connections` | One Jira link per user | `cloud_id`, `site_url`, `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
 | `api_keys` | Public-API credentials | `key_hash` (SHA-256), `key_hint`, `revoked_at`, `last_used_at` |
 
 Note what is *absent*: no `tickets` table (findings live in Jira and nowhere else, #9) and no digest bookkeeping (the digest is a standalone script, #12).
@@ -135,7 +137,7 @@ Every user-owned table carries `user_id`, and **every repository query filters o
 
 | Layer | Mechanism |
 |---|---|
-| App auth | scrypt (Node crypto, OWASP params) + `timingSafeEqual`; identical error + comparable timing for unknown email vs wrong password |
+| Sign-in | Atlassian OAuth only — no password is stored, hashed, or transmitted, so the entire password attack surface is absent |
 | Sessions | httpOnly + SameSite=Lax cookie, server-side SQLite store, session regeneration on login (fixation), rolling 8h expiry |
 | CSRF | SameSite=Lax baseline + Origin-check middleware on state-changing routes + single-use OAuth `state`; `/api/v1` exempt (no cookies — API-key auth) |
 | Jira tokens | AES-256-GCM at rest (fresh IV per encryption, auth tag); never sent to the client; never logged; pending multi-site tokens encrypted even inside the session |

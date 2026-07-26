@@ -6,7 +6,7 @@ A proof-of-concept for an **N**on-**H**uman **I**dentity management platform fea
 
 | | |
 |---|---|
-| 🔐 App auth | Login/register, server-side sessions, per-user data isolation |
+| 🔐 Sign-in | One button: "Sign in with Atlassian". No passwords, ever |
 | 🔗 Jira integration | OAuth 2.0 (3LO) with rotating refresh tokens, encrypted at rest |
 | 🎫 Finding tickets | Project picker (select **or** type a key), form → Jira issue with labels |
 | 🕙 Recent tickets | Last 10 filed per project, read live from Jira (no local mirror) |
@@ -24,23 +24,21 @@ Requirements: **Node.js 20.19+ / 22.12+ / 24** and npm. (A free [Atlassian accou
 ```bash
 npm install
 npm run setup    # creates .env and generates SESSION_SECRET + ENCRYPTION_KEY
-npm run seed     # creates the demo login
+# paste ATLASSIAN_CLIENT_ID / ATLASSIAN_CLIENT_SECRET into .env
 npm run dev      # API on :3000, web app on http://localhost:5173
 ```
 
-Sign in at **http://localhost:5173** with the demo user:
+Open **http://localhost:5173** and click **Sign in with Atlassian**. That's the whole onboarding — your Atlassian account *is* your IdentityHub account, so there is nothing to register and no password to set.
 
-```
-demo@identityhub.local / demo-password-123
-```
-
-The app runs immediately, but Jira features stay disabled until you register an Atlassian OAuth app (~5 minutes, next section) — the dashboard will tell you exactly that.
+If you were given `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET`, drop them into `.env` and you're done. Otherwise register your own app — the next section walks through every click (~5 minutes). Without them the sign-in page says so explicitly rather than failing mysteriously.
 
 ---
 
 ## Create your Atlassian OAuth app (~5 minutes, one time)
 
-IdentityHub connects to Jira with **OAuth 2.0 (3LO)** — users click *Connect Jira* and approve scoped access on Atlassian's consent screen; the app never sees a password. That requires an app registration in Atlassian's developer console:
+Sign-in *is* the Jira connection: users click **Sign in with Atlassian**, approve scoped access on Atlassian's consent screen, and land in the app — the server never sees a password. That requires an app registration in Atlassian's developer console:
+
+> **Skip this section** if you were given `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET` — paste them into `.env` and run `npm run dev`.
 
 1. Open the [Atlassian developer console](https://developer.atlassian.com/console/myapps/) and sign in (any free Atlassian account works — use the same one that owns your Jira site).
 2. **Create → OAuth 2.0 integration**. Name it e.g. `IdentityHub (dev)`, accept the terms, **Create**.
@@ -57,12 +55,12 @@ IdentityHub connects to Jira with **OAuth 2.0 (3LO)** — users click *Connect J
    ATLASSIAN_CLIENT_ID=...
    ATLASSIAN_CLIENT_SECRET=...
    ```
-6. Restart `npm run dev`. The dashboard now shows **Connect Jira**.
+6. Restart `npm run dev` and click **Sign in with Atlassian**.
 
 Notes:
 
 - The `offline_access` scope (refresh tokens) is requested in the authorize URL automatically — there is nothing to add for it in the console.
-- By default a console app can be authorized by **the Atlassian account that owns it**. To connect a *different* Atlassian account (e.g. demoing two isolated users against two Jira accounts), enable **Distribution → Sharing** in the console. Two app users connecting the *same* Atlassian account needs no extra setup.
+- By default a console app can be authorized by **the Atlassian account that owns it**. To let a *different* Atlassian account sign in — which is how you demo two isolated tenants — enable **Distribution → Sharing** in the console.
 
 ### Troubleshooting
 
@@ -78,7 +76,7 @@ Notes:
 
 ## Using the app
 
-1. **Connect Jira** — one click, approve on Atlassian's consent screen. Multi-site accounts get a site picker.
+1. **Sign in with Atlassian** — one click, approve on the consent screen. That authenticates you *and* connects Jira; an Atlassian login that can reach several Jira sites gets a picker (switchable later).
 2. **Pick a project** — searchable dropdown of your projects; you can also *type* any project key directly.
 3. **Report a finding** — title + description (required), severity + identity type (optional). *Fill sample* autofills a realistic NHI finding. The created issue carries the `identityhub` label plus `severity:*` / `nhi:*` labels.
 4. **Recent tickets** — the last 10 findings filed to the selected project *through this app* (UI, API, or digest), each linking into Jira. Read live from Jira via a JQL query on the `identityhub` label, so it always matches reality — there's no local copy to drift ([why](docs/DECISIONS.md)).
@@ -98,9 +96,9 @@ curl -X POST http://localhost:3000/api/v1/findings \
 A **standalone script**, external to the UI and to the server process — nothing in the API imports it. Files the newest Oasis Security blog post as a Jira ticket, summarized by Claude when `ANTHROPIC_API_KEY` is set, with an extractive fallback otherwise. Configure in `.env`:
 
 ```
-DIGEST_USER_EMAIL=demo@identityhub.local   # an app user who has connected Jira
-DIGEST_PROJECT_KEY=SEC                     # target Jira project
-# ANTHROPIC_API_KEY=sk-ant-...             # optional: AI summaries
+DIGEST_USER_EMAIL=you@yourcompany.com   # an account that has signed in at least once
+DIGEST_PROJECT_KEY=SEC                  # target Jira project
+# ANTHROPIC_API_KEY=sk-ant-...          # optional: AI summaries
 ```
 
 Then run it:
@@ -119,7 +117,6 @@ To put it on a schedule, use whatever the host already has — cron, Task Schedu
 |---|---|
 | `npm run setup` | Create `.env` from `.env.example` with fresh secrets (no-op if `.env` exists) |
 | `npm run dev` | Run API (`:3000`) + web dev server (`:5173`) with hot reload |
-| `npm run seed` | Create the demo login (idempotent) |
 | `npm run digest` | Run the blog digest once (standalone, independent of the server) |
 | `npm test` | Run the server test suite (50 tests) |
 | `npm run typecheck` | TypeScript across all workspaces |

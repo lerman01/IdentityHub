@@ -13,18 +13,18 @@ A suggested walkthrough for presenting the project, with the talking points that
 
 > "IdentityHub customers find identity issues — stale service accounts, over-privileged keys — and want them in Jira where work happens. I built the integration three ways: a UI for humans, a REST API for scanners, and a scheduled digest automation. All three converge on one service path."
 
-## 2. App auth + tenancy (1 min)
+## 2–3. Sign in with Atlassian (3 min) — the security centerpiece
 
-- Register a fresh user (or sign in as demo). Point out: session cookie is httpOnly/SameSite=Lax, server-side store, scrypt hashing with no dependencies.
-- Mention: wrong password and unknown email return the *same* error with comparable timing — no account enumeration.
+One button does authentication *and* Jira access. Talking points while the consent screen loads:
 
-## 3. Connect Jira via OAuth (2 min) — the security centerpiece
+- "There's no separate app account and no password anywhere in this codebase. Your Atlassian identity *is* your IdentityHub identity — which also means the app can't record 'Alice filed this' while Jira records 'Bob created it'. That mismatch is unrepresentable."
+- "OAuth 2.0 three-legged flow: the server never sees Atlassian credentials, access is limited to four scopes, and the user can revoke from Atlassian at any time."
+- "The `state` parameter is single-use and session-bound — CSRF protection on the flow itself."
 
-- Click **Connect Jira** → Atlassian consent screen. Talking points while it loads:
-  - "OAuth 2.0 three-legged flow — we never see the password; access is limited to three scopes; the user can revoke from Atlassian at any time."
-  - "The `state` parameter is single-use and session-bound — CSRF protection on the flow itself."
-- Approve → back in the app, connected card shows site + account.
-  - "Access tokens live an hour; refresh tokens *rotate* on every use. Refreshes are serialized per user so a race can't burn the rotation. Tokens are AES-256-GCM encrypted at rest and never reach the browser."
+Approve → you land signed in, with the site shown in the header card.
+
+- "Access tokens live an hour; refresh tokens *rotate* on every use. Refreshes are serialized per account so a race can't burn the rotation. Tokens are AES-256-GCM encrypted at rest and never reach the browser."
+- "The session is still server-side and revocable — I deliberately did *not* put the Atlassian token in a cookie. It expires hourly, it can't be revoked from our side, and validating it per request would couple our uptime to Atlassian's."
 
 ## 4. File a finding (2 min) — product thinking
 
@@ -62,7 +62,10 @@ A suggested walkthrough for presenting the project, with the talking points that
 
 | Question | Answer sits in |
 |---|---|
-| Why OAuth over API tokens? | [DECISIONS.md #2](DECISIONS.md) — plus: tokens make us a vault of long-lived credentials, the anti-pattern an NHI product fights |
+| Why no username/password at all? | DECISIONS #2 — one identity means app and Jira provenance can't diverge; also deletes the whole password attack surface |
+| Why OAuth over API tokens? | DECISIONS #2b — tokens make us a vault of long-lived credentials, the anti-pattern an NHI product fights |
+| Doesn't SSO force every user to have a Jira seat? | Yes — accepted for the POC, and exactly why production is org-level tenancy with a real IdP (DECISIONS #2, #3) |
+| Why keep a sessions table if you have OAuth? | DECISIONS #5 — token expiry, rotation races, and revocability |
 | What happens when the access token expires mid-request? | [ARCHITECTURE.md](ARCHITECTURE.md) token lifecycle — proactive refresh + 401 retry + per-user lock |
 | How is a second user's data isolated? | DECISIONS #3 — `user_id` on every query; tests assert it |
 | Why SQLite / no ORM? | DECISIONS #4 |

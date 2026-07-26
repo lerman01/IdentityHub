@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../src/lib/errors.js';
-import { createTestUser, insertFakeJiraConnection } from './helpers.js';
+import { createTestAccount } from './helpers.js';
 
 vi.mock('../src/modules/jira/jiraClient.js', () => ({
   getProject: vi.fn(),
@@ -45,16 +45,15 @@ beforeEach(() => {
 });
 
 describe('ticketService.createFinding', () => {
-  it('requires a Jira connection', async () => {
-    const user = createTestUser();
+  it('requires a chosen Jira site', async () => {
+    const user = createTestAccount({ withSite: false });
     await expect(ticketService.createFinding(user.id, findingInput(), 'ui')).rejects.toMatchObject({
-      code: 'JIRA_NOT_CONNECTED',
+      code: 'JIRA_SITE_NOT_SELECTED',
     });
   });
 
   it('creates an issue with the right type, ADF description, and labels', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
 
     const created = await ticketService.createFinding(
       user.id,
@@ -80,8 +79,7 @@ describe('ticketService.createFinding', () => {
   });
 
   it('tags the entry point so the source survives in Jira', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
 
     await ticketService.createFinding(user.id, findingInput(), 'api');
     const apiLabels = (createIssue.mock.calls[0]![1] as { labels: string[] }).labels;
@@ -93,8 +91,7 @@ describe('ticketService.createFinding', () => {
   });
 
   it('maps an unknown project to a clear 404', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
     getProject.mockRejectedValueOnce(new AppError(404, 'JIRA_NOT_FOUND', 'nope'));
 
     await expect(
@@ -103,8 +100,7 @@ describe('ticketService.createFinding', () => {
   });
 
   it('fails cleanly when a project has only subtask types', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
     getProject.mockResolvedValueOnce({
       ...PROJECT,
       issueTypes: [{ id: '2', name: 'Sub-task', subtask: true }],
@@ -117,16 +113,15 @@ describe('ticketService.createFinding', () => {
 });
 
 describe('ticketService.listRecent', () => {
-  it('requires a Jira connection', async () => {
-    const user = createTestUser();
+  it('requires a chosen Jira site', async () => {
+    const user = createTestAccount({ withSite: false });
     await expect(ticketService.listRecent(user.id, 'SEC')).rejects.toMatchObject({
-      code: 'JIRA_NOT_CONNECTED',
+      code: 'JIRA_SITE_NOT_SELECTED',
     });
   });
 
   it('maps Jira issues to tickets, reading the source back off the labels', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
     searchAppIssues.mockResolvedValueOnce([
       {
         id: '1',
@@ -151,8 +146,7 @@ describe('ticketService.listRecent', () => {
   });
 
   it('leaves source undefined for an issue labelled by hand in Jira', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
     searchAppIssues.mockResolvedValueOnce([
       { id: '2', key: 'SEC-7', summary: 'Tagged manually', created: '', labels: ['identityhub'] },
     ]);
@@ -162,8 +156,7 @@ describe('ticketService.listRecent', () => {
   });
 
   it('ignores an unrecognised source label rather than trusting it', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
     searchAppIssues.mockResolvedValueOnce([
       {
         id: '3',
@@ -179,8 +172,7 @@ describe('ticketService.listRecent', () => {
   });
 
   it('passes the requested limit through to the Jira query', async () => {
-    const user = createTestUser();
-    insertFakeJiraConnection(user.id);
+    const user = createTestAccount();
 
     await ticketService.listRecent(user.id, 'SEC', 5);
     expect(searchAppIssues).toHaveBeenCalledWith(user.id, 'SEC', 5);

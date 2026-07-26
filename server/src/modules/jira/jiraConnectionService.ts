@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import type { Session, SessionData } from 'express-session';
-import type { JiraConnectionDto, JiraSiteOption } from '@identityhub/shared';
+import type { AccountDto, JiraSiteOption, SessionDto } from '@identityhub/shared';
 import { env } from '../../config/env.js';
+import { accountRepo, type AccountRow } from '../../db/repositories/accountRepo.js';
 import { decryptSecret, encryptSecret } from '../../lib/crypto.js';
 import { AppError, badRequest, conflict } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
-import { jiraConnectionRepo } from '../../db/repositories/jiraConnectionRepo.js';
 import {
   buildAuthorizeUrl,
   exchangeCode,
@@ -17,12 +17,27 @@ import {
 
 type AppSession = Session & Partial<SessionData>;
 
+/**
+ * Sign-in and Jira access are the same act: authorizing Atlassian is what
+ * creates the account (docs/DECISIONS.md #2). So there is one OAuth flow
+ * rather than separate "register", "login" and "connect" paths.
+ */
+
 /** Outcome of the OAuth callback, translated by the route into a redirect. */
 export type CallbackResult =
-  | { kind: 'connected' }
+  | { kind: 'signed-in' }
   | { kind: 'select-site' }
   | { kind: 'denied' }
   | { kind: 'error'; reason: string };
+
+export function toAccountDto(row: AccountRow): AccountDto {
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    site: row.site_url && row.site_name ? { name: row.site_name, url: row.site_url } : null,
+  };
+}
 
 // ── OAuth flow ────────────────────────────────────────────────────────────────
 
@@ -32,9 +47,13 @@ export function startOAuth(session: AppSession): string {
   return buildAuthorizeUrl(state);
 }
 
+/**
+ * Completes sign-in. Identity comes from Jira's /myself on the first site the
+ * token can reach — the Atlassian account id it returns is global, so it
+ * identifies the person regardless of which site was used to look it up.
+ */
 export async function handleCallback(
   session: AppSession,
-  userId: string,
   query: { code?: string; state?: string; error?: string },
 ): Promise<CallbackResult> {
   // Single-use state: whatever happens next, this flow attempt is consumed.
@@ -45,14 +64,13 @@ export async function handleCallback(
   if (query.error) return { kind: 'error', reason: 'atlassian' };
 
   if (!expectedState || !query.state || query.state !== expectedState) {
-    logger.warn({ userId }, 'OAuth callback with missing/mismatched state');
+    logger.warn('OAuth callback with missing/mismatched state');
     return { kind: 'error', reason: 'state' };
   }
   if (!query.code) return { kind: 'error', reason: 'missing-code' };
 
   const tokens = await exchangeCode(query.code);
-  const resources = await fetchAccessibleResources(tokens.accessToken);
-  const sites: JiraSiteOption[] = resources.map((r) => ({
+  const sites = (await fetchAccessibleResources(tokens.accessToken)).map((r) => ({
     cloudId: r.id,
     name: r.name,
     url: r.url,
@@ -60,82 +78,63 @@ export async function handleCallback(
 
   if (sites.length === 0) return { kind: 'error', reason: 'no-sites' };
 
-  if (sites.length === 1) {
-    await finalizeConnection(userId, sites[0]!, tokens);
-    return { kind: 'connected' };
-  }
-
-  // Multiple sites: park the (encrypted) tokens until the user picks one.
-  session.jiraPendingSites = sites;
-  session.jiraPendingTokensEnc = encryptSecret(JSON.stringify(tokens));
-  return { kind: 'select-site' };
-}
-
-export async function selectSite(
-  session: AppSession,
-  userId: string,
-  cloudId: string,
-): Promise<void> {
-  const sites = session.jiraPendingSites;
-  const tokensEnc = session.jiraPendingTokensEnc;
-  if (!sites || !tokensEnc) {
-    throw conflict(
-      'JIRA_NO_PENDING_CONNECTION',
-      'There is no Jira connection in progress. Start again with "Connect Jira".',
-    );
-  }
-  const site = sites.find((s) => s.cloudId === cloudId);
-  if (!site) throw badRequest('That site is not one of the options for this connection.');
-
-  const tokens = JSON.parse(decryptSecret(tokensEnc)) as OAuthTokens;
-  await finalizeConnection(userId, site, tokens);
-
-  delete session.jiraPendingSites;
-  delete session.jiraPendingTokensEnc;
-}
-
-async function finalizeConnection(
-  userId: string,
-  site: JiraSiteOption,
-  tokens: OAuthTokens,
-): Promise<void> {
-  // Best effort profile lookup — a connection without an email is still valid.
-  const myself = await fetchMyself(site.cloudId, tokens.accessToken).catch(() => null);
-
-  jiraConnectionRepo.upsert({
-    userId,
-    cloudId: site.cloudId,
-    siteUrl: site.url,
-    siteName: site.name,
-    accountId: myself?.accountId ?? null,
-    accountEmail: myself?.emailAddress ?? null,
+  const myself = await fetchMyself(sites[0]!.cloudId, tokens.accessToken);
+  const account = accountRepo.upsertFromAtlassian({
+    atlassianAccountId: myself.accountId,
+    email: myself.emailAddress ?? null,
+    displayName: myself.displayName ?? null,
     accessTokenEnc: encryptSecret(tokens.accessToken),
     refreshTokenEnc: encryptSecret(tokens.refreshToken),
     accessTokenExpiresAt: tokens.expiresAt,
   });
-  logger.info({ userId, site: site.url }, 'Jira connected');
+
+  // A single site needs no ceremony; several means the account picks one next.
+  if (sites.length === 1) {
+    accountRepo.setSite(account.id, {
+      cloudId: sites[0]!.cloudId,
+      siteUrl: sites[0]!.url,
+      siteName: sites[0]!.name,
+    });
+  }
+
+  session.accountId = account.id;
+  logger.info({ accountId: account.id, sites: sites.length }, 'Signed in with Atlassian');
+  return sites.length === 1 ? { kind: 'signed-in' } : { kind: 'select-site' };
 }
 
-// ── Status / disconnect ───────────────────────────────────────────────────────
+// ── Session / site management ─────────────────────────────────────────────────
 
-export function getStatus(session: AppSession, userId: string): JiraConnectionDto {
-  const row = jiraConnectionRepo.findByUserId(userId);
+export function getSession(accountId: string | undefined): SessionDto {
+  const row = accountId ? accountRepo.findById(accountId) : undefined;
   return {
     oauthConfigured: env.jiraOAuthConfigured,
-    connected: Boolean(row),
-    ...(row
-      ? {
-          site: { name: row.site_name, url: row.site_url },
-          account: { email: row.account_email },
-        }
-      : {}),
-    ...(session.jiraPendingSites ? { pendingSites: session.jiraPendingSites } : {}),
+    account: row ? toAccountDto(row) : null,
   };
 }
 
-export function disconnect(userId: string): void {
-  jiraConnectionRepo.deleteByUserId(userId);
-  logger.info({ userId }, 'Jira disconnected');
+/** Sites this account's Atlassian login can reach — drives the site picker. */
+export async function listSites(accountId: string): Promise<JiraSiteOption[]> {
+  const { accessToken } = await getCloudContext(accountId, { requireSite: false });
+  return (await fetchAccessibleResources(accessToken)).map((r) => ({
+    cloudId: r.id,
+    name: r.name,
+    url: r.url,
+  }));
+}
+
+export async function selectSite(accountId: string, cloudId: string): Promise<AccountDto> {
+  const site = (await listSites(accountId)).find((s) => s.cloudId === cloudId);
+  if (!site) throw badRequest('That site is not one your Atlassian account can access.');
+
+  accountRepo.setSite(accountId, { cloudId, siteUrl: site.url, siteName: site.name });
+  logger.info({ accountId, site: site.url }, 'Jira site selected');
+  return toAccountDto(accountRepo.findById(accountId)!);
+}
+
+/** Drops the site choice but keeps the account signed in. */
+export function clearSite(accountId: string): void {
+  accountRepo.clearSite(accountId);
+  logger.info({ accountId }, 'Jira site cleared');
 }
 
 // ── Token management ──────────────────────────────────────────────────────────
@@ -143,17 +142,17 @@ export function disconnect(userId: string): void {
 /** Refresh this many ms before actual expiry, so in-flight requests never race the clock. */
 const EXPIRY_MARGIN_MS = 60_000;
 
-// Per-user promise chain: concurrent requests for the same user serialize
-// their refreshes (rotating refresh tokens make parallel refreshes fatal —
-// the loser would persist a dead token). In-process only; a multi-instance
-// deployment would need a shared lock (documented limitation).
-const userLocks = new Map<string, Promise<unknown>>();
+// Per-account promise chain: concurrent requests serialize their refreshes
+// (rotating refresh tokens make parallel refreshes fatal — the loser would
+// persist a dead token). In-process only; a multi-instance deployment would
+// need a shared lock (documented limitation).
+const accountLocks = new Map<string, Promise<unknown>>();
 
-function withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-  const previous = userLocks.get(userId) ?? Promise.resolve();
+function withAccountLock<T>(accountId: string, fn: () => Promise<T>): Promise<T> {
+  const previous = accountLocks.get(accountId) ?? Promise.resolve();
   const next = previous.then(fn, fn);
-  userLocks.set(
-    userId,
+  accountLocks.set(
+    accountId,
     next.catch(() => undefined),
   );
   return next;
@@ -165,36 +164,50 @@ export interface CloudContext {
   accessToken: string;
 }
 
+function contextFrom(row: AccountRow, accessToken: string, requireSite: boolean): CloudContext {
+  if (requireSite && !row.cloud_id) {
+    throw conflict('JIRA_SITE_NOT_SELECTED', 'Choose which Jira site to use first.');
+  }
+  return { cloudId: row.cloud_id ?? '', siteUrl: row.site_url ?? '', accessToken };
+}
+
 /**
- * Returns a currently-valid access token (+ cloud routing info) for the user,
- * transparently refreshing and persisting the rotated pair when needed.
+ * Returns a currently-valid access token (+ cloud routing info) for the
+ * account, transparently refreshing and persisting the rotated pair when
+ * needed.
  *
- * @param staleToken When a Jira call just failed with 401 despite a
+ * @param options.staleToken When a Jira call just failed with 401 despite a
  * "valid-looking" token, pass the token that failed: if the stored one is
  * still identical it gets force-refreshed; if another request already rotated
  * it, the newer token is returned without an extra refresh.
+ * @param options.requireSite Set false for calls that work before a site is
+ * chosen (listing accessible sites).
  */
-export async function getCloudContext(userId: string, staleToken?: string): Promise<CloudContext> {
-  const row = jiraConnectionRepo.findByUserId(userId);
-  if (!row) {
-    throw conflict('JIRA_NOT_CONNECTED', 'Connect your Jira workspace first.');
-  }
+export async function getCloudContext(
+  accountId: string,
+  options: { staleToken?: string; requireSite?: boolean } = {},
+): Promise<CloudContext> {
+  const { staleToken, requireSite = true } = options;
+  const row = accountRepo.findById(accountId);
+  if (!row) throw conflict('ACCOUNT_NOT_FOUND', 'Your account no longer exists. Please sign in.');
 
   const current = decryptSecret(row.access_token_enc);
   const looksFresh = row.access_token_expires_at - Date.now() > EXPIRY_MARGIN_MS;
   if (looksFresh && current !== staleToken) {
-    return { cloudId: row.cloud_id, siteUrl: row.site_url, accessToken: current };
+    return contextFrom(row, current, requireSite);
   }
 
-  return withUserLock(userId, async () => {
+  return withAccountLock(accountId, async () => {
     // Re-read inside the lock: a queued sibling may have already refreshed.
-    const fresh = jiraConnectionRepo.findByUserId(userId);
-    if (!fresh) throw conflict('JIRA_NOT_CONNECTED', 'Connect your Jira workspace first.');
+    const fresh = accountRepo.findById(accountId);
+    if (!fresh) {
+      throw conflict('ACCOUNT_NOT_FOUND', 'Your account no longer exists. Please sign in.');
+    }
 
     const stored = decryptSecret(fresh.access_token_enc);
     const storedIsFresh = fresh.access_token_expires_at - Date.now() > EXPIRY_MARGIN_MS;
     if (storedIsFresh && stored !== staleToken) {
-      return { cloudId: fresh.cloud_id, siteUrl: fresh.site_url, accessToken: stored };
+      return contextFrom(fresh, stored, requireSite);
     }
 
     let rotated: OAuthTokens;
@@ -203,24 +216,23 @@ export async function getCloudContext(userId: string, staleToken?: string): Prom
     } catch (err) {
       if (err instanceof AppError && err.code === 'JIRA_GRANT_INVALID') {
         // The refresh token is dead (revoked/expired/stolen-and-rotated).
-        // Drop the connection so the UI offers a clean reconnect.
-        jiraConnectionRepo.deleteByUserId(userId);
-        logger.warn({ userId }, 'Jira refresh token invalid — connection removed');
+        // Signing in again is the only recovery, and it re-issues both tokens.
+        logger.warn({ accountId }, 'Jira refresh token invalid — sign-in required');
         throw conflict(
           'JIRA_RECONNECT_REQUIRED',
-          'Your Jira authorization expired or was revoked. Please reconnect your workspace.',
+          'Your Jira authorization expired or was revoked. Please sign in again.',
         );
       }
       throw err;
     }
 
-    jiraConnectionRepo.updateTokens(userId, {
+    accountRepo.updateTokens(accountId, {
       accessTokenEnc: encryptSecret(rotated.accessToken),
       refreshTokenEnc: encryptSecret(rotated.refreshToken),
       accessTokenExpiresAt: rotated.expiresAt,
     });
-    logger.debug({ userId }, 'Jira access token refreshed');
+    logger.debug({ accountId }, 'Jira access token refreshed');
 
-    return { cloudId: fresh.cloud_id, siteUrl: fresh.site_url, accessToken: rotated.accessToken };
+    return contextFrom(fresh, rotated.accessToken, requireSite);
   });
 }

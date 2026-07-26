@@ -1,35 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  decryptSecret,
-  encryptSecret,
-  hashPassword,
-  sha256,
-  verifyPassword,
-} from '../src/lib/crypto.js';
+import { decryptSecret, encryptSecret, sha256 } from '../src/lib/crypto.js';
 
-describe('password hashing (scrypt)', () => {
-  it('verifies a correct password', async () => {
-    const hash = await hashPassword('correct horse battery staple');
-    expect(hash).toMatch(/^scrypt:16384:8:1:/);
-    await expect(verifyPassword('correct horse battery staple', hash)).resolves.toBe(true);
-  });
-
-  it('rejects a wrong password', async () => {
-    const hash = await hashPassword('right-password');
-    await expect(verifyPassword('wrong-password', hash)).resolves.toBe(false);
-  });
-
-  it('produces a unique salt per hash', async () => {
-    const a = await hashPassword('same-password');
-    const b = await hashPassword('same-password');
-    expect(a).not.toEqual(b);
-  });
-
-  it('rejects malformed stored hashes instead of throwing', async () => {
-    await expect(verifyPassword('x', 'not-a-hash')).resolves.toBe(false);
-    await expect(verifyPassword('x', 'bcrypt:whatever')).resolves.toBe(false);
-  });
-});
+// Note: there is no password hashing to test — sign-in is Atlassian OAuth
+// only, so the app never sees or stores a password (docs/DECISIONS.md #2).
 
 describe('secret encryption (AES-256-GCM)', () => {
   it('round-trips plaintext', () => {
@@ -51,11 +24,20 @@ describe('secret encryption (AES-256-GCM)', () => {
   it('rejects malformed payloads', () => {
     expect(() => decryptSecret('garbage')).toThrow('Malformed encrypted payload');
   });
+
+  it('round-trips unicode and long values', () => {
+    const secret = 'refresh·token—✓'.repeat(200);
+    expect(decryptSecret(encryptSecret(secret))).toBe(secret);
+  });
 });
 
 describe('sha256', () => {
   it('is deterministic and hex-encoded', () => {
     expect(sha256('ihk_abc')).toBe(sha256('ihk_abc'));
     expect(sha256('ihk_abc')).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('differs for different inputs', () => {
+    expect(sha256('ihk_a')).not.toBe(sha256('ihk_b'));
   });
 });

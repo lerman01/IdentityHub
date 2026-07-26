@@ -15,26 +15,31 @@ export interface ApiErrorBody {
   };
 }
 
-export interface UserDto {
-  id: string;
-  email: string;
-}
-
-/** A Jira site the user may pick when their token can access several. */
+/** A Jira site the account may pick when its Atlassian login can access several. */
 export interface JiraSiteOption {
   cloudId: string;
   name: string;
   url: string;
 }
 
-export interface JiraConnectionDto {
-  /** False when the server has no Atlassian OAuth app credentials configured. */
+/**
+ * The signed-in account. Identity comes from Atlassian — there is no separate
+ * app user, so `email` and `displayName` are whatever Jira reports (either can
+ * be hidden by the user's Atlassian privacy settings).
+ */
+export interface AccountDto {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  /** Null while an account with several Jira sites has yet to pick one. */
+  site: { name: string; url: string } | null;
+}
+
+/** Response of GET /api/auth/me — also usable while signed out. */
+export interface SessionDto {
+  /** False when the server has no Atlassian OAuth credentials configured. */
   oauthConfigured: boolean;
-  connected: boolean;
-  site?: { name: string; url: string };
-  account?: { email: string | null };
-  /** Present when OAuth finished but the user still has to pick one of several sites. */
-  pendingSites?: JiraSiteOption[];
+  account: AccountDto | null;
 }
 
 export interface ProjectDto {

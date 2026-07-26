@@ -6,7 +6,7 @@ import {
   type TicketDto,
   type TicketSource,
 } from '@identityhub/shared';
-import { jiraConnectionRepo } from '../../db/repositories/jiraConnectionRepo.js';
+import { accountRepo } from '../../db/repositories/accountRepo.js';
 import { textToAdf } from '../../lib/adf.js';
 import { AppError, conflict, notFound } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
@@ -37,10 +37,10 @@ function buildDescription(input: CreateFindingInput, source: TicketSource): stri
   return `${input.description}\n\n${meta.join('  ·  ')}`;
 }
 
-async function resolveIssueTypeId(userId: string, projectKey: string): Promise<string> {
+async function resolveIssueTypeId(accountId: string, projectKey: string): Promise<string> {
   let project;
   try {
-    project = await getProject(userId, projectKey);
+    project = await getProject(accountId, projectKey);
   } catch (err) {
     if (err instanceof AppError && err.status === 404) {
       throw notFound(
@@ -65,23 +65,23 @@ async function resolveIssueTypeId(userId: string, projectKey: string): Promise<s
   return preferred.id;
 }
 
-/** Every ticket operation needs the connected site (for URLs and API routing). */
-function requireConnection(userId: string) {
-  const connection = jiraConnectionRepo.findByUserId(userId);
-  if (!connection) {
-    throw conflict('JIRA_NOT_CONNECTED', 'Connect your Jira workspace first.');
+/** Every ticket operation needs a chosen Jira site (for browse URLs). */
+function requireSite(accountId: string) {
+  const account = accountRepo.findById(accountId);
+  if (!account?.site_url) {
+    throw conflict('JIRA_SITE_NOT_SELECTED', 'Choose which Jira site to use first.');
   }
-  return connection;
+  return account;
 }
 
 export const ticketService = {
   async createFinding(
-    userId: string,
+    accountId: string,
     input: CreateFindingInput,
     source: TicketSource,
   ): Promise<CreatedTicketDto> {
-    const connection = requireConnection(userId);
-    const issueTypeId = await resolveIssueTypeId(userId, input.projectKey);
+    const account = requireSite(accountId);
+    const issueTypeId = await resolveIssueTypeId(accountId, input.projectKey);
 
     const fields: Record<string, unknown> = {
       project: { key: input.projectKey },
@@ -91,9 +91,9 @@ export const ticketService = {
       labels: buildLabels(input, source),
     };
 
-    const issue = await createIssue(userId, fields);
+    const issue = await createIssue(accountId, fields);
 
-    const jiraUrl = `${connection.site_url}/browse/${issue.key}`;
+    const jiraUrl = `${account.site_url}/browse/${issue.key}`;
     logger.info({ issueKey: issue.key, source }, 'Finding ticket created');
     return { id: issue.id, issueKey: issue.key, url: jiraUrl };
   },
@@ -105,16 +105,16 @@ export const ticketService = {
    * per-app-user: two IdentityHub users connected to the same Jira project see
    * the same list. Credentials, connections, and API keys remain per-user.
    */
-  async listRecent(userId: string, projectKey: string, limit = 10): Promise<TicketDto[]> {
-    const connection = requireConnection(userId);
-    const issues = await searchAppIssues(userId, projectKey, limit);
+  async listRecent(accountId: string, projectKey: string, limit = 10): Promise<TicketDto[]> {
+    const account = requireSite(accountId);
+    const issues = await searchAppIssues(accountId, projectKey, limit);
 
     return issues.map((issue) => ({
       id: issue.id,
       projectKey,
       issueKey: issue.key,
       summary: issue.summary,
-      jiraUrl: `${connection.site_url}/browse/${issue.key}`,
+      jiraUrl: `${account.site_url}/browse/${issue.key}`,
       source: parseSource(issue.labels),
       createdAt: issue.created,
     }));

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createFindingSchema, loginSchema, registerSchema } from '@identityhub/shared';
+import { createFindingSchema } from '@identityhub/shared';
+
+// The finding schema is the app's only user-supplied input contract — it
+// validates the web form, the public API, and the digest job identically.
 
 describe('createFindingSchema', () => {
   const valid = {
@@ -19,8 +22,10 @@ describe('createFindingSchema', () => {
   });
 
   it('rejects a project key that is not key-shaped', () => {
-    const result = createFindingSchema.safeParse({ ...valid, projectKey: 'not a key!' });
-    expect(result.success).toBe(false);
+    // Also what makes interpolating the key into JQL safe (see jiraClient).
+    for (const bad of ['not a key!', 'SEC"', 'SEC OR 1=1', '1SEC', '']) {
+      expect(createFindingSchema.safeParse({ ...valid, projectKey: bad }).success).toBe(false);
+    }
   });
 
   it('gives human messages for missing fields (API consumers see these)', () => {
@@ -33,24 +38,13 @@ describe('createFindingSchema', () => {
   });
 
   it('enforces the Jira 255-char summary limit', () => {
-    const result = createFindingSchema.safeParse({ ...valid, title: 'x'.repeat(256) });
-    expect(result.success).toBe(false);
+    expect(createFindingSchema.safeParse({ ...valid, title: 'x'.repeat(256) }).success).toBe(false);
   });
 
-  it('rejects unknown severity values', () => {
+  it('rejects unknown severity and identity type values', () => {
     expect(createFindingSchema.safeParse({ ...valid, severity: 'urgent' }).success).toBe(false);
     expect(createFindingSchema.safeParse({ ...valid, severity: 'high' }).success).toBe(true);
-  });
-});
-
-describe('auth schemas', () => {
-  it('requires a valid email and 8+ char password to register', () => {
-    expect(registerSchema.safeParse({ email: 'a@b.co', password: '12345678' }).success).toBe(true);
-    expect(registerSchema.safeParse({ email: 'nope', password: '12345678' }).success).toBe(false);
-    expect(registerSchema.safeParse({ email: 'a@b.co', password: 'short' }).success).toBe(false);
-  });
-
-  it('login only requires a non-empty password', () => {
-    expect(loginSchema.safeParse({ email: 'a@b.co', password: 'x' }).success).toBe(true);
+    expect(createFindingSchema.safeParse({ ...valid, identityType: 'robot' }).success).toBe(false);
+    expect(createFindingSchema.safeParse({ ...valid, identityType: 'api-key' }).success).toBe(true);
   });
 });

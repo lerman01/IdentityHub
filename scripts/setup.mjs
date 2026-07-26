@@ -33,8 +33,9 @@ writeFileSync(envPath, env, 'utf8');
 console.log(`Created ${envPath} with generated SESSION_SECRET and ENCRYPTION_KEY.
 
 Next steps:
-  1. Register an Atlassian OAuth app (README → "Create your Atlassian OAuth app", ~5 minutes)
-     and paste ATLASSIAN_CLIENT_ID / ATLASSIAN_CLIENT_SECRET into .env
-  2. npm run seed   — creates the demo login (demo@identityhub.local / demo-password-123)
-  3. npm run dev    — server on http://localhost:3000, app on http://localhost:5173
+  1. Put ATLASSIAN_CLIENT_ID / ATLASSIAN_CLIENT_SECRET into .env — either the
+     credentials you were given, or your own app (README → "Create your
+     Atlassian OAuth app", ~5 minutes)
+  2. npm run dev    — server on http://localhost:3000, app on http://localhost:5173
+  3. Sign in with Atlassian. There is no separate account to create.
 `);

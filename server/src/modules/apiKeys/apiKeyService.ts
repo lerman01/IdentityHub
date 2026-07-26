@@ -27,10 +27,10 @@ function toDto(row: ApiKeyRow): ApiKeyDto {
 }
 
 export const apiKeyService = {
-  create(userId: string, name: string): CreatedApiKeyDto {
+  create(accountId: string, name: string): CreatedApiKeyDto {
     const key = KEY_PREFIX + randomBytes(32).toString('base64url');
     const row = apiKeyRepo.insert({
-      userId,
+      accountId,
       name,
       keyHash: sha256(key),
       keyHint: `${KEY_PREFIX}…${key.slice(-4)}`,
@@ -38,22 +38,22 @@ export const apiKeyService = {
     return { ...toDto(row), key };
   },
 
-  list(userId: string): ApiKeyDto[] {
-    return apiKeyRepo.listByUser(userId).map(toDto);
+  list(accountId: string): ApiKeyDto[] {
+    return apiKeyRepo.listByAccount(accountId).map(toDto);
   },
 
-  revoke(userId: string, keyId: string): void {
-    if (!apiKeyRepo.revoke(keyId, userId)) {
+  revoke(accountId: string, keyId: string): void {
+    if (!apiKeyRepo.revoke(keyId, accountId)) {
       throw notFound('That API key does not exist or is already revoked.');
     }
   },
 
   /** Constant-work verification used by the public API middleware. */
-  verify(key: string): { userId: string; keyId: string } | null {
+  verify(key: string): { accountId: string; keyId: string } | null {
     if (!key.startsWith(KEY_PREFIX)) return null;
     const row = apiKeyRepo.findByHash(sha256(key));
     if (!row || row.revoked_at) return null;
     apiKeyRepo.touchLastUsed(row.id);
-    return { userId: row.user_id, keyId: row.id };
+    return { accountId: row.account_id, keyId: row.id };
   },
 };

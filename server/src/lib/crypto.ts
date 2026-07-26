@@ -1,75 +1,14 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-  scrypt as scryptCb,
-  timingSafeEqual,
-  type ScryptOptions,
-} from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { env } from '../config/env.js';
 
-// Promisified by hand: util.promisify picks the overload without options.
-function scrypt(
-  password: string,
-  salt: Buffer,
-  keylen: number,
-  options: ScryptOptions,
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    scryptCb(password, salt, keylen, options, (err, derived) =>
-      err ? reject(err) : resolve(derived),
-    );
-  });
-}
-
 /**
- * Password hashing and secret encryption, built on Node's own crypto module.
- * Deliberately dependency-free: scrypt is an OWASP-recommended KDF and GCM
- * gives authenticated encryption, so bcrypt/argon2 native builds and their
- * supply chain are avoided entirely (see docs/DECISIONS.md).
+ * Secret encryption and hashing, built on Node's own crypto module — no
+ * dependencies, so there is no supply chain to audit for the code that
+ * handles credentials (see docs/DECISIONS.md).
+ *
+ * There is no password hashing here: sign-in is Atlassian OAuth only, so the
+ * app never sees or stores a password.
  */
-
-// scrypt parameters (OWASP baseline for interactive logins): N=2^14, r=8, p=1.
-const SCRYPT_N = 16384;
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
-const SCRYPT_KEYLEN = 64;
-const SALT_BYTES = 16;
-
-/** Returns a self-describing hash string: scrypt:N:r:p:salt:hash (base64url). */
-export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(SALT_BYTES);
-  const derived = await scrypt(password, salt, SCRYPT_KEYLEN, {
-    N: SCRYPT_N,
-    r: SCRYPT_R,
-    p: SCRYPT_P,
-  });
-  return [
-    'scrypt',
-    SCRYPT_N,
-    SCRYPT_R,
-    SCRYPT_P,
-    salt.toString('base64url'),
-    derived.toString('base64url'),
-  ].join(':');
-}
-
-/** Constant-time verification against a stored hash (parameters read from the hash itself). */
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const parts = stored.split(':');
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
-  const [, nStr, rStr, pStr, saltB64, hashB64] = parts;
-  const salt = Buffer.from(saltB64!, 'base64url');
-  const expected = Buffer.from(hashB64!, 'base64url');
-  const derived = await scrypt(password, salt, expected.length, {
-    N: Number(nStr),
-    r: Number(rStr),
-    p: Number(pStr),
-    maxmem: 128 * 1024 * 1024,
-  });
-  return derived.length === expected.length && timingSafeEqual(derived, expected);
-}
 
 // AES-256-GCM for secrets at rest (Jira OAuth tokens). Fresh random IV per
 // encryption; the GCM auth tag makes tampering with stored ciphertext detectable.

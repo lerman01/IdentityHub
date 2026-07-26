@@ -12,9 +12,25 @@ Every consequential choice in this project, with the alternatives considered and
 
 **Alternatives:** *Next.js* — least setup friction and one process, but the backend becomes route handlers inside the frontend framework, and the security-relevant plumbing (sessions, middleware ordering) moves into framework abstractions. *NestJS* — strong enterprise signal, but heavy for a POC and adds DI magic that would dominate the review.
 
-## 2. Jira auth: OAuth 2.0 (3LO) — not per-user API tokens
+## 2. One identity: "Sign in with Atlassian" is the only way in
 
-**Decision:** Full authorization-code flow with rotating refresh tokens; per-user connections.
+**Decision:** There is no separate app account. Authorizing Atlassian via OAuth 2.0 (3LO) *is* signing up, signing in, and connecting Jira — a single button, a single flow, a single `accounts` table keyed by `atlassian_account_id`. No passwords are stored, hashed, or transmitted; there is no register page and no seeded demo user.
+
+**Why:** with separate app accounts, nothing stopped registering as `alice@corp.com` and then connecting Jira as `bob@personal.com`. The app would record "Alice filed this finding" while Jira recorded "Bob created this issue" — broken provenance, which matters more than usual for a security tool. Collapsing the two identities makes that mismatch unrepresentable rather than merely discouraged.
+
+It also deletes a large amount of security-sensitive surface: no password hashing, no reset flow, no credential stuffing, no account-enumeration concerns, no password column to leak.
+
+**What this costs, accepted:**
+
+- **Every user must have their own Atlassian account.** Fine for a POC where Jira is the only feature, but the production model would be an *organization* tenant with one org-level Jira connection and users authenticating through a real IdP (Okta/Entra/Google via OIDC), because IdentityHub users and Jira-licensed users are not 1:1. See #3.
+- **Demonstrating multi-tenancy needs two Atlassian accounts** (both free) rather than two app registrations.
+- **Sign-in depends on Atlassian being reachable.** No local fallback credential exists.
+
+**A note on the mechanism:** 3LO issues an *access token*, not an OIDC *ID token*, so identity is derived by calling `/rest/api/3/myself` after the exchange. That is safe here because the server performs the code exchange itself with the client secret after verifying `state` — the token comes from Atlassian, never from the browser. It is nonetheless OAuth pressed into service as authentication rather than the standardised OIDC path, which is what a production version would use.
+
+## 2b. Why OAuth 2.0 (3LO) and not per-user API tokens
+
+**Decision:** Full authorization-code flow with rotating refresh tokens.
 
 **Why:** It is the production-correct model for a multi-tenant SaaS integrating with customers' Jira: no raw credentials collected (Atlassian's guidance explicitly reserves API tokens for scripts, and distributed apps that collect them violate their security requirements), scope-limited access (`read:jira-user read:jira-work write:jira-work offline_access` — each load-bearing), user-revocable, and short-lived tokens shrink the blast radius of any leak.
 
@@ -22,13 +38,15 @@ Every consequential choice in this project, with the alternatives considered and
 
 **Alternative:** Per-user Atlassian API tokens (paste email + token). Frictionless to run and fine for scripts, but it makes the platform a vault of long-lived, broadly-scoped credentials — the exact anti-pattern an NHI security product exists to fight.
 
-## 3. Multi-tenancy: tenant = app user
+## 3. Multi-tenancy: tenant = Atlassian account
 
-**Decision:** Each user owns their Jira connection, tickets, and API keys. Every table carries `user_id`; **every repository query filters on it**; API keys resolve to their owner; sessions isolate browsers; the client cache is wiped on logout.
+**Decision:** Each account owns its Jira tokens, chosen site, and API keys. Every owned row carries `account_id`; **every repository query filters on it**; API keys resolve to their owning account; sessions isolate browsers; the client cache is wiped on logout.
 
-**Why:** Satisfies "multiple concurrent users without data interference" with a model that is small enough to verify (tests assert cross-user isolation for tickets and key revocation).
+**Why:** Satisfies "multiple concurrent users without data interference" with a model small enough to verify — tests assert that one account cannot revoke another's API key, and the `accounts.atlassian_account_id` unique constraint means one Atlassian identity is exactly one tenant.
 
-**Production path:** Tenant becomes an *organization* (users belong to orgs, connections/keys are org-scoped, roles gate actions); the scoping pattern stays identical, keyed by `org_id`.
+**The documented exception:** the Recent Tickets view is scoped by *Jira project*, not by account, because it reads from Jira (#9). Two accounts pointed at the same project see the same list. Credentials never cross.
+
+**Production path:** tenant becomes an *organization* — users belong to orgs, the Jira connection is org-level (one admin authorizes; the team files through it, most without a Jira seat), roles gate actions, and app identity comes from a real IdP rather than from Jira. The scoping pattern is unchanged, keyed by `org_id`.
 
 ## 4. Storage: SQLite + hand-written parameterized SQL
 
@@ -38,17 +56,15 @@ Every consequential choice in this project, with the alternatives considered and
 
 **Alternatives:** Prisma/Drizzle add type-safe query DSLs and migration tooling at the cost of codegen and magic. **Production path:** Postgres + a migration tool (the repository layer is the seam to swap behind).
 
-## 5. Sessions: server-side store + httpOnly cookie (not JWT)
+## 5. Sessions: server-side store, not the Atlassian token and not a JWT
 
-**Decision:** `express-session`, custom ~70-line SQLite store, httpOnly SameSite=Lax cookie, session regeneration on login, rolling 8h expiry, logout destroys server-side state.
+**Decision:** `express-session` with a custom ~70-line SQLite store; httpOnly SameSite=Lax cookie carrying only a signed session id; rolling 8h expiry; logout destroys the row.
 
-**Why:** Sessions are revocable server-side (JWTs are not, without rebuilding sessions anyway), the cookie never carries data (only a signed id), and httpOnly keeps it away from page JavaScript. The custom store shares the app's single DB connection instead of pulling a dependency.
+**Why not put the Atlassian access token in the cookie?** It expires in ~1 hour, and its refresh token *rotates* — two tabs refreshing at once would race, one would get `invalid_grant`, and the account's Jira authorization would break. Serializing refreshes requires server-side token storage (see the per-account lock in ARCHITECTURE). The token would also have to be validated against Atlassian on every request (latency, quota, and our uptime coupled to theirs), and the natural fix — caching that validation server-side — *is* a session store. Finally, a stolen session id only grants "act as this account through IdentityHub", which we can revoke instantly; a stolen access token talks to Atlassian directly, bypassing us entirely, and cannot be revoked from our side.
 
-## 6. Passwords: scrypt from `node:crypto` (not bcrypt/argon2)
+**Why not a stateless signed cookie?** It would drop this table and ~100 lines. It would also drop server-side revocation: "logout" could only clear the browser's copy while the cookie stayed valid until expiry. Given "secure session management" is an explicit requirement, the stronger option is worth the code — this is the one place where simpler means weaker.
 
-**Decision:** scrypt (N=2^14, r=8, p=1 — OWASP interactive-login baseline), per-user salt, `timingSafeEqual`, self-describing hash format; login burns comparable time on unknown emails (no user enumeration by timing or message).
-
-**Why:** An OWASP-recommended KDF with zero dependencies — no native build friction on the reviewer's machine and no supply chain to audit. The parameters travel inside the hash, so they can be raised later without invalidating existing hashes.
+*(No password hashing appears anywhere in this codebase — see #2. `lib/crypto.ts` does AES-256-GCM and SHA-256 only.)*
 
 ## 7. Jira tokens encrypted at rest: AES-256-GCM
 
@@ -122,8 +138,8 @@ project = SEC AND labels = identityhub ORDER BY created DESC
 | Console-based logger | Zero deps; "no secrets logged" is verifiable in one file | pino + structured shipping, request ids |
 | Recent-tickets panel is a live Jira query, so it depends on Jira being reachable | No mirror means no drift (#9); an empty panel beats a wrong one | Add a write-only audit log beside it, and cache reads with a short TTL |
 | `react-router` pinned to 7.11 | 7.12+ is inside a CSRF advisory range for RSC server actions — a feature this SPA doesn't use; 7.11 predates the vulnerable code entirely and audits clean | Bump to the patched major on the next dependency pass |
-| App login is email+password | Assignment asks for app login | SSO/OIDC (the session layer is unchanged) |
+| Identity provider is Jira itself | Jira is the only integration in this POC | A real IdP (Okta/Entra/Google via OIDC) with Jira demoted to an integration — see #2 |
 
 ---
 
-*Assignment ambiguities resolved along the way — no user directory specified (→ self-registration + seeded demo user), "tickets created from this app" (→ #9), whose Jira the API/digest uses (→ the key owner's / configured user's) — are each covered by the ADR that implements them.*
+*Assignment ambiguities resolved along the way — no user directory specified (→ Atlassian is the identity provider, #2), "tickets created from this app" (→ #9), whose Jira the API/digest uses (→ the key owner's / configured account's) — are each covered by the ADR that implements them.*

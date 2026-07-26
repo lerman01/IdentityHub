@@ -3,20 +3,21 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
+import { authLimiter } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { searchProjects } from './jiraClient.js';
 import {
   type CallbackResult,
-  disconnect,
-  getStatus,
+  clearSite,
   handleCallback,
+  listSites,
   selectSite,
   startOAuth,
 } from './jiraConnectionService.js';
 
 export const jiraRouter = Router();
 
-/** Dashboard URL with a status flag the UI turns into a toast. */
+/** App URL with a status flag the UI turns into a toast. */
 function appRedirect(flag: string, reason?: string): string {
   const url = new URL('/', env.APP_URL);
   url.searchParams.set('jira', flag);
@@ -24,12 +25,11 @@ function appRedirect(flag: string, reason?: string): string {
   return url.toString();
 }
 
-/**
- * Browser NAVIGATION endpoints (not fetch calls): failures redirect back into
- * the app instead of rendering JSON to a lost user.
- */
-jiraRouter.get('/oauth/start', (req, res, next) => {
-  if (!req.session.userId) return res.redirect(new URL('/login', env.APP_URL).toString());
+// ── Sign in with Atlassian ────────────────────────────────────────────────────
+// These two are browser NAVIGATIONS, not fetch calls: failures redirect back
+// into the app rather than rendering JSON at a lost user.
+
+jiraRouter.get('/oauth/start', authLimiter, (req, res, next) => {
   if (!env.jiraOAuthConfigured) return res.redirect(appRedirect('error', 'not-configured'));
 
   const authorizeUrl = startOAuth(req.session);
@@ -38,54 +38,46 @@ jiraRouter.get('/oauth/start', (req, res, next) => {
 });
 
 jiraRouter.get('/oauth/callback', async (req, res) => {
-  if (!req.session.userId) return res.redirect(new URL('/login', env.APP_URL).toString());
-
   const q = req.query;
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 
   let result: CallbackResult;
   try {
-    result = await handleCallback(req.session, req.session.userId, {
+    result = await handleCallback(req.session, {
       code: str(q.code),
       state: str(q.state),
       error: str(q.error),
     });
   } catch (err) {
     const reason = err instanceof AppError ? err.code.toLowerCase() : 'unknown';
-    logger.error(
-      {
-        reason,
-        error: err instanceof Error ? err.message : String(err),
-      },
-      'OAuth callback failed',
-    );
+    logger.error({ reason, error: err instanceof Error ? err.message : String(err) }, 'Sign-in failed');
     result = { kind: 'error', reason };
   }
 
   const target =
     result.kind === 'error' ? appRedirect('error', result.reason) : appRedirect(result.kind);
 
-  // The callback mutated the session (state consumed, maybe pending sites) —
+  // The callback mutated the session (state consumed, account signed in) —
   // make sure that's on disk before the browser moves on.
   req.session.save(() => res.redirect(target));
 });
 
 // ── JSON endpoints for the app ────────────────────────────────────────────────
 
-jiraRouter.get('/connection', requireAuth, (req, res) => {
-  res.json(getStatus(req.session, req.session.userId!));
+jiraRouter.get('/sites', requireAuth, async (req, res) => {
+  res.json(await listSites(req.session.accountId!));
 });
 
 const selectSiteSchema = z.object({ cloudId: z.string().min(1).max(200) });
 
 jiraRouter.post('/site', requireAuth, async (req, res) => {
   const { cloudId } = selectSiteSchema.parse(req.body);
-  await selectSite(req.session, req.session.userId!, cloudId);
-  res.json(getStatus(req.session, req.session.userId!));
+  res.json(await selectSite(req.session.accountId!, cloudId));
 });
 
-jiraRouter.delete('/connection', requireAuth, (req, res) => {
-  disconnect(req.session.userId!);
+/** "Switch Jira site" — stays signed in, just drops the current choice. */
+jiraRouter.delete('/site', requireAuth, (req, res) => {
+  clearSite(req.session.accountId!);
   res.status(204).end();
 });
 
@@ -93,5 +85,5 @@ const projectsQuerySchema = z.object({ query: z.string().trim().max(100).optiona
 
 jiraRouter.get('/projects', requireAuth, async (req, res) => {
   const { query } = projectsQuerySchema.parse(req.query);
-  res.json(await searchProjects(req.session.userId!, query));
+  res.json(await searchProjects(req.session.accountId!, query));
 });

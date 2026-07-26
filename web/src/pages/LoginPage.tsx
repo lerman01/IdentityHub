@@ -1,52 +1,57 @@
-import { loginSchema, type LoginInput } from '@identityhub/shared';
-import { Loader2Icon, ShieldCheckIcon } from 'lucide-react';
-import { useForm } from 'react-hook-form';
-import { Link, useLocation, useNavigate } from 'react-router';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ExternalLinkIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
+import { useEffect } from 'react';
+import { useSearchParams } from 'react-router';
+import { toast } from 'sonner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { useLogin } from '@/hooks/useAuth';
-import { zodResolver } from '@/lib/zodResolver';
+import { signInWithAtlassian, useSession } from '@/hooks/useAuth';
+
+/** Human messages for the ?jira=error&reason=… redirect from the OAuth callback. */
+const SIGN_IN_ERRORS: Record<string, string> = {
+  state: 'The sign-in attempt expired or was tampered with. Please try again.',
+  'missing-code': 'Atlassian did not return an authorization code. Please try again.',
+  'no-sites':
+    'Your Atlassian account has no Jira sites. Create a free one at atlassian.com, then sign in again.',
+  'not-configured': 'This server has no Atlassian OAuth credentials configured yet.',
+  jira_token_error:
+    'Atlassian rejected the token exchange. Check the client ID/secret and callback URL in .env.',
+  jira_unreachable: 'Could not reach Atlassian. Check your network and try again.',
+};
 
 export function LoginPage() {
-  const login = useLogin();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const session = useSession();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const form = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
-  });
+  // The OAuth callback redirects here on failure; turn the flag into a toast.
+  useEffect(() => {
+    const flag = searchParams.get('jira');
+    if (!flag) return;
 
-  async function onSubmit(values: LoginInput) {
-    try {
-      await login.mutateAsync(values);
-    } catch {
-      return; // the error is rendered from login.error below
+    if (flag === 'denied') {
+      toast.info('Sign-in canceled', {
+        description: 'You declined access on the Atlassian consent screen.',
+      });
+    } else if (flag === 'error') {
+      const reason = searchParams.get('reason') ?? '';
+      toast.error('Could not sign in', {
+        description: SIGN_IN_ERRORS[reason] ?? 'Something went wrong. Please try again.',
+      });
     }
-    const from = (location.state as { from?: string } | null)?.from;
-    navigate(from ?? '/', { replace: true });
-  }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const configured = session.data?.oauthConfigured ?? true;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-md">
         <div className="mb-6 flex items-center justify-center gap-2">
           <ShieldCheckIcon className="size-7" />
           <span className="text-xl font-semibold tracking-tight">IdentityHub</span>
@@ -55,69 +60,38 @@ export function LoginPage() {
         <Card>
           <CardHeader>
             <CardTitle>Sign in</CardTitle>
-            <CardDescription>Report NHI findings to your Jira workspace.</CardDescription>
+            <CardDescription>
+              Report NHI findings straight into your Jira workspace.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-                {login.isError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{login.error.message}</AlertDescription>
-                  </Alert>
-                )}
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          autoComplete="email"
-                          placeholder="you@company.com"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="current-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <Button type="submit" className="w-full" disabled={login.isPending}>
-                  {login.isPending && <Loader2Icon className="animate-spin" />}
-                  Sign in
+          <CardContent className="space-y-4">
+            {configured ? (
+              <>
+                <Button className="w-full" size="lg" onClick={signInWithAtlassian}>
+                  Sign in with Atlassian
+                  <ExternalLinkIcon />
                 </Button>
-              </form>
-            </Form>
+                <p className="text-center text-xs text-muted-foreground">
+                  Your Atlassian account is your IdentityHub account — there is no separate
+                  password. We never see your Atlassian credentials, and you can revoke access at
+                  any time from your Atlassian account settings.
+                </p>
+              </>
+            ) : (
+              <Alert>
+                <TriangleAlertIcon />
+                <AlertTitle>Atlassian OAuth app not configured</AlertTitle>
+                <AlertDescription>
+                  This server has no Atlassian credentials, so sign-in is unavailable. Set{' '}
+                  <code className="font-mono text-xs">ATLASSIAN_CLIENT_ID</code> and{' '}
+                  <code className="font-mono text-xs">ATLASSIAN_CLIENT_SECRET</code> in{' '}
+                  <code>.env</code> and restart — the README section{' '}
+                  <span className="font-medium">“Create your Atlassian OAuth app”</span> walks
+                  through every click.
+                </AlertDescription>
+              </Alert>
+            )}
           </CardContent>
-          <CardFooter className="flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
-              No account?{' '}
-              <Link to="/register" className="font-medium text-foreground underline">
-                Create one
-              </Link>
-            </p>
-            <div className="w-full rounded-md bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
-              Demo login: <span className="font-mono">demo@identityhub.local</span> /{' '}
-              <span className="font-mono">demo-password-123</span>
-            </div>
-          </CardFooter>
         </Card>
       </div>
     </div>

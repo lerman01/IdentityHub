@@ -9,7 +9,7 @@ export const apiKeyRouter = Router();
 apiKeyRouter.use(requireAuth);
 
 apiKeyRouter.get('/', (req, res) => {
-  res.json(apiKeyService.list(req.session.userId!));
+  res.json(apiKeyService.list(req.session.accountId!));
 });
 
 const createKeySchema = z.object({
@@ -22,13 +22,13 @@ const createKeySchema = z.object({
 
 apiKeyRouter.post('/', (req, res) => {
   const { name } = createKeySchema.parse(req.body);
-  res.status(201).json(apiKeyService.create(req.session.userId!, name));
+  res.status(201).json(apiKeyService.create(req.session.accountId!, name));
 });
 
 const keyIdSchema = z.object({ id: z.uuid() });
 
 apiKeyRouter.delete('/:id', (req, res) => {
   const { id } = keyIdSchema.parse(req.params);
-  apiKeyService.revoke(req.session.userId!, id);
+  apiKeyService.revoke(req.session.accountId!, id);
   res.status(204).end();
 });

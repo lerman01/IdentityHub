@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestUser, insertFakeJiraConnection } from './helpers.js';
+import { createTestAccount } from './helpers.js';
 
 vi.mock('../src/modules/jira/jiraClient.js', () => ({
   getProject: vi.fn(),
@@ -24,8 +24,8 @@ const VALID_BODY = {
   foundBy: 'nightly-scan',
 };
 
-function makeUserWithKey() {
-  const user = createTestUser();
+function makeUserWithKey(options: { withSite?: boolean } = {}) {
+  const user = createTestAccount(options);
   const key = apiKeyService.create(user.id, 'test-key').key;
   return { user, key };
 }
@@ -72,19 +72,18 @@ describe('POST /api/v1/findings', () => {
     expect(fields).toContain('description');
   });
 
-  it('409s when the key owner has no Jira connection', async () => {
-    const { key } = makeUserWithKey();
+  it('409s when the key owner has not chosen a Jira site', async () => {
+    const { key } = makeUserWithKey({ withSite: false });
     const res = await request(app)
       .post('/api/v1/findings')
       .set('Authorization', `Bearer ${key}`)
       .send(VALID_BODY);
     expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('JIRA_NOT_CONNECTED');
+    expect(res.body.error.code).toBe('JIRA_SITE_NOT_SELECTED');
   });
 
   it('201s and returns the issue reference on the happy path', async () => {
-    const { user, key } = makeUserWithKey();
-    insertFakeJiraConnection(user.id);
+    const { key } = makeUserWithKey();
 
     const res = await request(app)
       .post('/api/v1/findings')
@@ -116,7 +115,6 @@ describe('POST /api/v1/findings', () => {
 describe('GET /api/v1/findings', () => {
   it("returns the key owner's Jira issues, uppercasing the project key", async () => {
     const { user, key } = makeUserWithKey();
-    insertFakeJiraConnection(user.id);
     vi.mocked(jiraClient.searchAppIssues).mockResolvedValueOnce([
       {
         id: '1',
@@ -137,13 +135,13 @@ describe('GET /api/v1/findings', () => {
     expect(jiraClient.searchAppIssues).toHaveBeenCalledWith(user.id, 'SEC', 5);
   });
 
-  it('409s when the key owner has no Jira connection', async () => {
-    const { key } = makeUserWithKey();
+  it('409s when the key owner has not chosen a Jira site', async () => {
+    const { key } = makeUserWithKey({ withSite: false });
     const res = await request(app)
       .get('/api/v1/findings?projectKey=SEC')
       .set('Authorization', `Bearer ${key}`);
     expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('JIRA_NOT_CONNECTED');
+    expect(res.body.error.code).toBe('JIRA_SITE_NOT_SELECTED');
   });
 
   it('validates the query', async () => {

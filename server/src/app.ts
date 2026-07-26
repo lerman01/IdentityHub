@@ -30,6 +30,8 @@ export function createApp() {
   });
 
   // Browser-facing routes (session cookie + origin check).
+  // Sign-in itself lives under /api/jira/oauth — authorizing Atlassian is what
+  // creates the account and the session (docs/DECISIONS.md #2).
   app.use('/api/auth', authRouter);
   app.use('/api/jira', jiraRouter);
   app.use('/api/tickets', ticketRouter);

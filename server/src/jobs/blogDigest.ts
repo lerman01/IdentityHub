@@ -1,7 +1,6 @@
 import { createFindingSchema } from '@identityhub/shared';
 import { env } from '../config/env.js';
-import { jiraConnectionRepo } from '../db/repositories/jiraConnectionRepo.js';
-import { userRepo } from '../db/repositories/userRepo.js';
+import { accountRepo } from '../db/repositories/accountRepo.js';
 import { logger } from '../lib/logger.js';
 import { ticketService } from '../modules/tickets/ticketService.js';
 import { fetchLatestPost } from './blogScraper.js';
@@ -48,18 +47,18 @@ function requireConfig(): { userEmail: string; projectKey: string } {
 export async function runBlogDigest(): Promise<DigestResult> {
   const { userEmail, projectKey } = requireConfig();
 
-  const user = userRepo.findByEmail(userEmail.toLowerCase());
-  if (!user) {
+  const account = accountRepo.findByEmail(userEmail);
+  if (!account) {
     throw new DigestConfigError(
-      `No IdentityHub user with email "${userEmail}". Sign in to the app as that user first ` +
-        '(or point DIGEST_USER_EMAIL at an existing account).',
+      `No IdentityHub account with email "${userEmail}". Sign in to the app with that ` +
+        'Atlassian account once, then run the digest again.',
     );
   }
 
-  if (!jiraConnectionRepo.findByUserId(user.id)) {
+  if (!account.cloud_id) {
     throw new DigestConfigError(
-      `The digest user (${userEmail}) has not connected a Jira workspace yet. ` +
-        'Sign in to the app as that user and complete "Connect Jira" once.',
+      `The digest account (${userEmail}) has not chosen a Jira site yet. ` +
+        'Sign in to the app as that account and pick one.',
     );
   }
 
@@ -76,7 +75,7 @@ export async function runBlogDigest(): Promise<DigestResult> {
     foundBy: 'nhi-blog-digest',
   });
 
-  const created = await ticketService.createFinding(user.id, input, 'digest');
+  const created = await ticketService.createFinding(account.id, input, 'digest');
 
   return {
     issueKey: created.issueKey,

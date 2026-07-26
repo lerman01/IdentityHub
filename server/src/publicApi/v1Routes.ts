@@ -23,7 +23,7 @@ publicApiRouter.use(requireApiKey);
 
 publicApiRouter.post('/findings', async (req, res) => {
   const input = createFindingSchema.parse(req.body);
-  const created = await ticketService.createFinding(req.apiKeyAuth!.userId, input, 'api');
+  const created = await ticketService.createFinding(req.apiKeyAuth!.accountId, input, 'api');
   res.status(201).json(created);
 });
 
@@ -39,5 +39,5 @@ const listQuerySchema = z.object({
 
 publicApiRouter.get('/findings', async (req, res) => {
   const { projectKey, limit } = listQuerySchema.parse(req.query);
-  res.json(await ticketService.listRecent(req.apiKeyAuth!.userId, projectKey, limit));
+  res.json(await ticketService.listRecent(req.apiKeyAuth!.accountId, projectKey, limit));
 });

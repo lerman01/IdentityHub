@@ -1,7 +1,7 @@
 import { Loader2Icon, ServerCrashIcon } from 'lucide-react';
-import { Navigate, Outlet, useLocation } from 'react-router';
+import { Navigate, Outlet } from 'react-router';
 import { Button } from '@/components/ui/button';
-import { useMe } from '@/hooks/useAuth';
+import { useSession } from '@/hooks/useAuth';
 
 function CenteredNote({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-screen items-center justify-center p-4">{children}</div>;
@@ -36,20 +36,19 @@ function ServerUnreachable({ onRetry }: { onRetry: () => void }) {
 
 /** Wraps authenticated routes: verifies the session before rendering children. */
 export function RequireAuth() {
-  const me = useMe();
-  const location = useLocation();
+  const session = useSession();
 
-  if (me.isLoading) return <LoadingScreen />;
-  if (me.isError) return <ServerUnreachable onRetry={() => void me.refetch()} />;
-  if (!me.data) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (session.isLoading) return <LoadingScreen />;
+  if (session.isError) return <ServerUnreachable onRetry={() => void session.refetch()} />;
+  if (!session.data?.account) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
 
-/** Wraps login/register: an already-signed-in user goes straight to the app. */
+/** Wraps the login page: an already-signed-in account goes straight to the app. */
 export function PublicOnly() {
-  const me = useMe();
+  const session = useSession();
 
-  if (me.isLoading) return <LoadingScreen />;
-  if (me.data) return <Navigate to="/" replace />;
+  if (session.isLoading) return <LoadingScreen />;
+  if (session.data?.account) return <Navigate to="/" replace />;
   return <Outlet />;
 }

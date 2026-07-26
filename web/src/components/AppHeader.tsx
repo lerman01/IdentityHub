@@ -1,7 +1,7 @@
 import { Loader2Icon, LogOutIcon, ShieldCheckIcon } from 'lucide-react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/button';
-import { useLogout, useMe } from '@/hooks/useAuth';
+import { useLogout, useSession } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
 function HeaderLink({ to, children }: { to: string; children: React.ReactNode }) {
@@ -22,9 +22,10 @@ function HeaderLink({ to, children }: { to: string; children: React.ReactNode })
 }
 
 export function AppHeader() {
-  const me = useMe();
+  const session = useSession();
   const logout = useLogout();
   const navigate = useNavigate();
+  const account = session.data?.account;
 
   async function onLogout() {
     try {
@@ -41,9 +42,6 @@ export function AppHeader() {
           <Link to="/" className="flex items-center gap-2">
             <ShieldCheckIcon className="size-5" />
             <span className="font-semibold tracking-tight">IdentityHub</span>
-            <span className="hidden rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground md:inline">
-              NHI findings → Jira
-            </span>
           </Link>
           <nav className="flex items-center gap-3 text-sm">
             <HeaderLink to="/">Dashboard</HeaderLink>
@@ -52,7 +50,9 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-muted-foreground sm:inline">{me.data?.email}</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">
+            {account?.email ?? account?.displayName ?? 'Signed in'}
+          </span>
           <Button variant="ghost" size="sm" onClick={onLogout} disabled={logout.isPending}>
             {logout.isPending ? (
               <Loader2Icon className="animate-spin" />

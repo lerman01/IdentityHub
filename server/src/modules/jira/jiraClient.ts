@@ -86,15 +86,15 @@ async function rawRequest(
 }
 
 export async function jiraFetch<T>(
-  userId: string,
+  accountId: string,
   path: string,
   init: { method?: string; body?: unknown } = {},
 ): Promise<T> {
-  let ctx = await getCloudContext(userId);
+  let ctx = await getCloudContext(accountId);
   let res = await rawRequest(ctx, path, init);
 
   if (res.status === 401) {
-    ctx = await getCloudContext(userId, ctx.accessToken);
+    ctx = await getCloudContext(accountId, { staleToken: ctx.accessToken });
     res = await rawRequest(ctx, path, init);
   }
 
@@ -123,11 +123,11 @@ interface ProjectSearchResponse {
  * One page of 50, ordered by key — plenty for a picker; the UI also accepts a
  * typed key for anything beyond it.
  */
-export async function searchProjects(userId: string, query?: string) {
+export async function searchProjects(accountId: string, query?: string) {
   const params = new URLSearchParams({ maxResults: '50', orderBy: 'key' });
   if (query) params.set('query', query);
   const data = await jiraFetch<ProjectSearchResponse>(
-    userId,
+    accountId,
     `/rest/api/3/project/search?${params.toString()}`,
   );
   return data.values.map((p) => ({
@@ -146,9 +146,9 @@ interface ProjectWithIssueTypes {
 }
 
 /** Also serves as project-existence validation (404 → mapped error). */
-export function getProject(userId: string, projectKey: string): Promise<ProjectWithIssueTypes> {
+export function getProject(accountId: string, projectKey: string): Promise<ProjectWithIssueTypes> {
   return jiraFetch<ProjectWithIssueTypes>(
-    userId,
+    accountId,
     `/rest/api/3/project/${encodeURIComponent(projectKey)}?expand=issueTypes`,
   );
 }
@@ -159,10 +159,10 @@ export interface CreatedIssue {
 }
 
 export function createIssue(
-  userId: string,
+  accountId: string,
   fields: Record<string, unknown>,
 ): Promise<CreatedIssue> {
-  return jiraFetch<CreatedIssue>(userId, '/rest/api/3/issue', {
+  return jiraFetch<CreatedIssue>(accountId, '/rest/api/3/issue', {
     method: 'POST',
     body: { fields },
   });
@@ -200,11 +200,11 @@ export interface JiraIssueSummary {
  * it to /^[A-Za-z][A-Za-z0-9_]*$/, so it cannot carry quotes or operators.
  */
 export async function searchAppIssues(
-  userId: string,
+  accountId: string,
   projectKey: string,
   limit: number,
 ): Promise<JiraIssueSummary[]> {
-  const data = await jiraFetch<JqlSearchResponse>(userId, '/rest/api/3/search/jql', {
+  const data = await jiraFetch<JqlSearchResponse>(accountId, '/rest/api/3/search/jql', {
     method: 'POST',
     body: {
       jql: `project = ${projectKey} AND labels = ${APP_LABEL} ORDER BY created DESC`,
