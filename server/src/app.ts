@@ -6,6 +6,7 @@ import { env, REPO_ROOT } from './config/env.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { originCheck } from './middleware/originCheck.js';
 import { authRouter } from './modules/auth/authRoutes.js';
+import { jiraRouter } from './modules/jira/jiraRoutes.js';
 import { sessionMiddleware } from './session/index.js';
 
 /**
@@ -26,9 +27,9 @@ export function createApp() {
   });
 
   app.use('/api/auth', authRouter);
+  app.use('/api/jira', jiraRouter);
 
   // Feature routers still to land:
-  //   /api/jira      — OAuth flow, connection, projects (M2/M3)
   //   /api/tickets   — create + recent, session-authed (M3/M4)
   //   /api/api-keys  — key management (M5)
   //   /api/v1        — public API, key-authed (M5)
