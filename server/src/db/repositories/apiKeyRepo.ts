@@ -20,6 +20,11 @@ const byAccountStmt = db.prepare(
   'SELECT * FROM api_keys WHERE account_id = ? ORDER BY created_at DESC, rowid DESC',
 );
 const byIdStmt = db.prepare('SELECT * FROM api_keys WHERE id = ?');
+// NOCASE matches the collation of idx_api_keys_account_name, so this lookup
+// answers exactly the question the unique index enforces.
+const nameTakenStmt = db.prepare(
+  'SELECT 1 FROM api_keys WHERE account_id = ? AND name = ? COLLATE NOCASE LIMIT 1',
+);
 const byHashStmt = db.prepare('SELECT * FROM api_keys WHERE key_hash = ?');
 // account_id in the WHERE clause is the tenancy boundary: users can only revoke their own keys.
 const revokeStmt = db.prepare(`
@@ -35,6 +40,11 @@ export const apiKeyRepo = {
     const id = randomUUID();
     insertStmt.run({ id, ...row });
     return byIdStmt.get(id) as ApiKeyRow;
+  },
+
+  /** True when this account already has a key by that name (revoked ones count). */
+  nameTaken(accountId: string, name: string): boolean {
+    return nameTakenStmt.get(accountId, name) !== undefined;
   },
 
   listByAccount(accountId: string): ApiKeyRow[] {

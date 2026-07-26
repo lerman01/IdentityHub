@@ -130,7 +130,7 @@ sequenceDiagram
 |---|---|---|
 | `accounts` | Atlassian identity **and** its Jira connection — the tenant | `atlassian_account_id` unique, `email`, `display_name`, `cloud_id`/`site_url`/`site_name` (all `NOT NULL` — the grant is site-scoped, so a signed-in account always has exactly one site, [#2c](DECISIONS.md)), `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
 | `sessions` | Server-side session store | `sid`, JSON `data`, `expires_at` |
-| `api_keys` | Public-API credentials | `key_hash` (SHA-256), `key_hint`, `revoked_at`, `last_used_at` |
+| `api_keys` | Public-API credentials | `key_hash` (SHA-256), `key_hint`, `revoked_at`, `last_used_at`, `name` (unique per account, `COLLATE NOCASE` — the name is all the user has to tell keys apart once the plaintext is gone) |
 
 Note what is *absent*: no `tickets` table (findings live in Jira and nowhere else, #9) and no digest bookkeeping (the digest is a standalone script, #12).
 

@@ -47,14 +47,17 @@ export function ApiKeysPage() {
   const [name, setName] = useState('');
   const [createdKey, setCreatedKey] = useState<CreatedApiKeyDto | null>(null);
 
+  const trimmedName = name.trim();
+  const isDuplicateName = Boolean(
+    keys.data?.some((key) => key.name.toLowerCase() === trimmedName.toLowerCase()),
+  );
+  const canCreate = trimmedName.length > 0 && !isDuplicateName;
+
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Give the key a name', { description: 'e.g. "prod-scanner" or "ci-pipeline".' });
-      return;
-    }
+    if (!canCreate) return;
     try {
-      const created = await createKey.mutateAsync(name.trim());
+      const created = await createKey.mutateAsync(trimmedName);
       setCreatedKey(created);
       setName('');
     } catch (err) {
@@ -93,17 +96,26 @@ export function ApiKeysPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <form onSubmit={(e) => void onCreate(e)} className="flex max-w-md gap-2">
-              <Input
-                placeholder='Key name, e.g. "prod-scanner"'
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={60}
-              />
-              <Button type="submit" disabled={createKey.isPending}>
-                {createKey.isPending ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
-                Create key
-              </Button>
+            <form onSubmit={(e) => void onCreate(e)} className="max-w-md space-y-1.5">
+              <div className="flex gap-2">
+                <Input
+                  placeholder='Key name, e.g. "prod-scanner"'
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={60}
+                  aria-invalid={isDuplicateName}
+                  aria-describedby={isDuplicateName ? 'key-name-error' : undefined}
+                />
+                <Button type="submit" disabled={!canCreate || createKey.isPending}>
+                  {createKey.isPending ? <Loader2Icon className="animate-spin" /> : <PlusIcon />}
+                  Create key
+                </Button>
+              </div>
+              {isDuplicateName && (
+                <p id="key-name-error" className="text-sm text-destructive">
+                  A key named "{trimmedName}" already exists. Pick another name.
+                </p>
+              )}
             </form>
 
             {keys.isLoading ? (

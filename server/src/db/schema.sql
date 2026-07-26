@@ -48,6 +48,16 @@ CREATE TABLE IF NOT EXISTS api_keys (
   revoked_at   TEXT
 );
 
+-- Key names are the only way a user tells their keys apart in the UI (the key
+-- itself is shown once), so they are unique per account, case-insensitively.
+-- An index rather than a table constraint because schema.sql re-runs with
+-- CREATE ... IF NOT EXISTS on every boot: a column constraint would only ever
+-- reach fresh databases, while CREATE UNIQUE INDEX also applies to existing
+-- ones. Revoked keys still occupy their name — the row stays visible in the
+-- list, so freeing the name would make two rows in that list look identical.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_account_name
+  ON api_keys (account_id, name COLLATE NOCASE);
+
 -- Note: there is no `tickets` table by design. Jira is the only store for
 -- findings; the "recent tickets" view is a live JQL query on the "identityhub"
 -- label, so an issue deleted or renamed in Jira can never drift out of sync

@@ -14,6 +14,28 @@ describe('apiKeyService', () => {
     expect(JSON.stringify(listed)).not.toContain(created.key);
   });
 
+  it('rejects a duplicate name for the same account, ignoring case and revocation', () => {
+    const user = createTestAccount();
+    const first = apiKeyService.create(user.id, 'prod-scanner');
+
+    expect(() => apiKeyService.create(user.id, 'prod-scanner')).toThrow(AppError);
+    expect(() => apiKeyService.create(user.id, 'PROD-Scanner')).toThrow(AppError);
+
+    // A revoked key keeps its name: the row stays in the list, so reusing the
+    // name would put two identical-looking entries in front of the user.
+    apiKeyService.revoke(user.id, first.id);
+    expect(() => apiKeyService.create(user.id, 'prod-scanner')).toThrow(AppError);
+
+    expect(apiKeyService.list(user.id)).toHaveLength(1);
+  });
+
+  it('scopes name uniqueness per account', () => {
+    const alice = createTestAccount();
+    const bob = createTestAccount();
+    apiKeyService.create(alice.id, 'ci-pipeline');
+    expect(() => apiKeyService.create(bob.id, 'ci-pipeline')).not.toThrow();
+  });
+
   it('verifies a valid key and records last use', () => {
     const user = createTestAccount();
     const created = apiKeyService.create(user.id, 'scanner');
