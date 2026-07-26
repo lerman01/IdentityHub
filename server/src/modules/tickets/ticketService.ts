@@ -17,8 +17,8 @@ import { buildLabels, parseSource } from '../jira/labels.js';
  * The one path every ticket takes, whatever its origin (web form, public API,
  * blog digest). Scope decisions live here:
  *
- * - Issue type is resolved per project: "Task" when available, otherwise the
- *   first non-subtask type. No configuration needed on the Jira side.
+ * - Issue type is resolved per project: "Task" when available, else "Bug", else
+ *   the first non-subtask type. No configuration needed on the Jira side.
  * - severity / identityType map to Jira LABELS (severity:high,
  *   nhi:service-account), not custom fields: labels work on any Jira
  *   workspace with zero admin setup. A metadata line is also appended to the

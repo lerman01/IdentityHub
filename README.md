@@ -120,7 +120,7 @@ To put it on a schedule, use whatever the host already has — cron, Task Schedu
 | `npm run setup` | Create `.env` from `.env.example` with fresh secrets (no-op if `.env` exists) |
 | `npm run dev` | Run API (`:3000`) + web dev server (`:5173`) with hot reload |
 | `npm run digest` | Run the blog digest once (standalone, independent of the server) |
-| `npm test` | Run the server test suite (50 tests) |
+| `npm test` | Run the server test suite (68 tests) |
 | `npm run typecheck` | TypeScript across all workspaces |
 | `npm run lint` | ESLint across the repo |
 | `npm run build` | Build the web app for production |
@@ -145,9 +145,12 @@ All configuration lives in `.env` (see [.env.example](.env.example) for comments
 ```
 shared/   Zod schemas + DTO types used by BOTH server and web (one validation source)
 server/   Express 5 API — routes → services → repositories/jiraClient, SQLite storage
-  src/modules/     auth · jira (OAuth, client) · tickets · apiKeys
+  src/session/     session middleware, SQLite store, /api/auth routes
+  src/modules/     jira (OAuth, client, connection) · tickets · apiKeys
   src/publicApi/   /api/v1 for external systems (API-key auth)
   src/jobs/        blog digest (scraper, summarizer, runner)
+  src/db/          connection, schema.sql, repositories
+  src/middleware/  auth guards, origin check, error handler
   test/            vitest + supertest suite
 web/      React 19 SPA — pages → hooks (TanStack Query) → typed api client
 ```

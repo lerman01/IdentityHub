@@ -60,7 +60,8 @@ Pick a site, approve → you land signed in, with the site shown in the card.
 ## 7. Architecture close (1 min)
 
 - Open [ARCHITECTURE.md](ARCHITECTURE.md) — component diagram: three entry points, one service layer, layering rules, tenancy scoping on every query.
-- "Fifty tests cover the crypto, the OAuth state machine, tenancy boundaries, and the API contract. Zero npm audit findings. Every trade-off is an ADR in DECISIONS.md."
+- "Sixty-eight tests cover the crypto, the OAuth state machine, tenancy boundaries, JQL-injection rejection, and the API contract. Every trade-off is an ADR in DECISIONS.md."
+  - If asked about `npm audit`: **be straight about it** — one high-severity finding against the pinned `react-router` 7.11. The pin was taken to dodge an advisory and has since fallen inside several; the applicable one is an open redirect in `<Link>`/`useNavigate` that this app doesn't expose (it only navigates to fixed internal paths). It needs a bump to ≥ 7.18.0 — DECISIONS #15.
 
 ## Likely questions → where the answer lives
 
@@ -73,7 +74,7 @@ Pick a site, approve → you land signed in, with the site shown in the card.
 | Why can't I switch Jira site inside the app? | DECISIONS #2c — resource-level grants scope the token to one site; Atlassian owns the choice |
 | Does logout revoke the Atlassian token? | No — 3LO has no revoke endpoint, and revoking would break the user's API keys and digest job. Users revoke in Atlassian → Connected apps |
 | What happens when the access token expires mid-request? | [ARCHITECTURE.md](ARCHITECTURE.md) token lifecycle — proactive refresh + 401 retry + per-user lock |
-| How is a second user's data isolated? | DECISIONS #3 — `user_id` on every query; tests assert it |
+| How is a second user's data isolated? | DECISIONS #3 — `account_id` on every query; tests assert it |
 | Why SQLite / no ORM? | DECISIONS #4 |
 | What would change for production? | DECISIONS #15 table |
 | Does "writes a project" mean creating one? | DECISIONS #9b — read as an input method; creation would need project-admin scope |
@@ -81,4 +82,4 @@ Pick a site, approve → you land signed in, with the site shown in the card.
 | Isn't a label editable? What if someone removes it? | DECISIONS #9 — accepted trade-off, weighed against mirror drift |
 | Two users on the same Jira project see each other's tickets? | Yes, by design — the view is workspace-scoped; credentials/keys/connections stay per-user |
 | What if two requests refresh the token simultaneously? | Rotating refresh tokens make the loser fatal — hence the per-user lock (ARCHITECTURE, token lifecycle) |
-| Where do you handle a revoked connection? | `invalid_grant` → connection dropped → `JIRA_RECONNECT_REQUIRED` → reconnect card |
+| Where do you handle a revoked connection? | `invalid_grant` on refresh → 409 `JIRA_RECONNECT_REQUIRED` with "please sign in again"; the row is kept (deleting it would cascade away the user's API keys) and signing in re-issues both tokens in place — ARCHITECTURE token lifecycle |

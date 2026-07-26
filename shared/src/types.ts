@@ -6,7 +6,7 @@ import type { TicketSource } from './constants.js';
  */
 export interface ApiErrorBody {
   error: {
-    /** Stable machine-readable code, e.g. "VALIDATION_ERROR", "JIRA_NOT_CONNECTED". */
+    /** Stable machine-readable code, e.g. "VALIDATION_ERROR", "JIRA_RECONNECT_REQUIRED". */
     code: string;
     /** Human-readable, end-user-safe message. */
     message: string;

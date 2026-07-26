@@ -18,7 +18,12 @@ Tickets are filed into the **key owner's** connected Jira workspace — the key 
 Every non-2xx response has this shape; `code` is stable and machine-readable, `message` is human-readable:
 
 ```json
-{ "error": { "code": "JIRA_NOT_CONNECTED", "message": "Connect your Jira workspace first." } }
+{
+  "error": {
+    "code": "JIRA_RECONNECT_REQUIRED",
+    "message": "Your Jira authorization expired or was revoked. Please sign in again."
+  }
+}
 ```
 
 Validation failures include per-field details:
@@ -52,8 +57,6 @@ Create an NHI finding ticket in Jira.
 
 ### Responses
 
-Also note `GET` returns **409 `JIRA_NOT_CONNECTED`** if the key owner has no Jira connection, since it queries Jira live.
-
 | Status | Code | Meaning |
 |---|---|---|
 | **201** | — | Created. Body: `{ "id", "issueKey", "url" }` |
@@ -61,10 +64,13 @@ Also note `GET` returns **409 `JIRA_NOT_CONNECTED`** if the key owner has no Jir
 | 401 | `API_KEY_MISSING` / `API_KEY_INVALID` | No key / unknown or revoked key |
 | 403 | `JIRA_FORBIDDEN` | The connected Jira account lacks permission in that project |
 | 404 | `NOT_FOUND` | Project not visible in the connected Jira (message names the key) |
-| 409 | `JIRA_NOT_CONNECTED` | Key owner hasn't connected a Jira workspace |
-| 409 | `JIRA_RECONNECT_REQUIRED` | Jira authorization expired/revoked — reconnect in the app |
+| 409 | `JIRA_RECONNECT_REQUIRED` | Jira authorization expired/revoked — sign in again in the app |
+| 409 | `JIRA_NO_ISSUE_TYPE` | The project exposes no usable (non-subtask) issue type |
+| 409 | `ACCOUNT_NOT_FOUND` | The key's owning account no longer exists |
 | 429 | `JIRA_RATE_LIMITED` | Jira is rate-limiting us; retry shortly |
 | 502 | `JIRA_UNAVAILABLE` / `JIRA_UNREACHABLE` | Upstream Jira problems |
+
+There is no "Jira not connected" state: signing in *is* authorizing Jira, so every account has exactly one connected site ([DECISIONS #2c](DECISIONS.md)). A connection that has gone bad surfaces as `JIRA_RECONNECT_REQUIRED`.
 
 ### Example
 

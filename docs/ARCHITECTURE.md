@@ -11,7 +11,7 @@ flowchart LR
 
     subgraph Server["Express 5 API (server/)"]
         R[Routes<br/>thin controllers + zod parsing]
-        SV[Services<br/>auth · jira · tickets · apiKeys]
+        SV[Services<br/>session · jira · tickets · apiKeys]
         RP[Repositories<br/>parameterized SQL]
         JC[jiraClient<br/>authed fetch + retry]
     end
@@ -87,9 +87,9 @@ Two things worth noting in that trace:
 Atlassian access tokens live ~1 hour; refresh tokens **rotate** — every refresh returns a new pair and kills the old refresh token. That shapes the design:
 
 - **Proactive refresh** when a token is within 60s of expiry, plus a **retry-once on 401** for tokens revoked out-of-band.
-- **Per-user lock** around refresh: concurrent requests serialize, so two requests can never both spend the same rotating refresh token (the loser would strand the connection). In-process only — a multi-instance deployment would move this to a shared lock ([DECISIONS.md #15](DECISIONS.md)).
+- **Per-account lock** around refresh: concurrent requests serialize, so two requests can never both spend the same rotating refresh token (the loser would strand the connection). In-process only — a multi-instance deployment would move this to a shared lock ([DECISIONS.md #15](DECISIONS.md)).
 - After a refresh inside the lock, siblings re-read the row and use the new token without refreshing again.
-- `invalid_grant` (refresh token expired/revoked) → the connection row is deleted and the API returns `JIRA_RECONNECT_REQUIRED`; the UI shows a clean reconnect card.
+- `invalid_grant` (refresh token expired/revoked) → the API returns **409 `JIRA_RECONNECT_REQUIRED`** with "Your Jira authorization expired or was revoked. Please sign in again." The row is deliberately *not* deleted: the account row *is* the connection, so dropping it would also cascade away the user's API keys. Signing in again re-issues both tokens and updates the row in place. The UI surfaces the server's message — an inline alert in Recent Tickets, a toast on a failed create — rather than a dedicated reconnect screen.
 
 ## Creating a finding
 
@@ -99,8 +99,8 @@ sequenceDiagram
     participant T as ticketService
     participant J as Jira Cloud
 
-    C->>T: createFinding(userId, input, source)
-    T->>T: connection check (409 if none)
+    C->>T: createFinding(accountId, input, source)
+    T->>T: account lookup (409 ACCOUNT_NOT_FOUND if gone)
     T->>J: GET /project/{key}?expand=issueTypes
     J-->>T: issue types (also validates the project → 404)
     T->>T: pick type: Task → Bug → first non-subtask
@@ -117,7 +117,7 @@ sequenceDiagram
     participant T as ticketService
     participant J as Jira Cloud
 
-    C->>T: listRecent(userId, projectKey, 10)
+    C->>T: listRecent(accountId, projectKey, 10)
     T->>J: POST /rest/api/3/search/jql<br/>project = KEY AND labels = identityhub
     J-->>T: issues[] (summary, created, labels)
     T->>T: parse source:* label, build browse URLs
@@ -128,13 +128,13 @@ sequenceDiagram
 
 | Table | Purpose | Notable columns |
 |---|---|---|
-| `accounts` | Atlassian identity **and** its Jira connection — the tenant | `atlassian_account_id` unique, `email`, `cloud_id`/`site_url` (nullable until a site is picked), `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
+| `accounts` | Atlassian identity **and** its Jira connection — the tenant | `atlassian_account_id` unique, `email`, `display_name`, `cloud_id`/`site_url`/`site_name` (all `NOT NULL` — the grant is site-scoped, so a signed-in account always has exactly one site, [#2c](DECISIONS.md)), `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
 | `sessions` | Server-side session store | `sid`, JSON `data`, `expires_at` |
 | `api_keys` | Public-API credentials | `key_hash` (SHA-256), `key_hint`, `revoked_at`, `last_used_at` |
 
 Note what is *absent*: no `tickets` table (findings live in Jira and nowhere else, #9) and no digest bookkeeping (the digest is a standalone script, #12).
 
-Every user-owned table carries `user_id`, and **every repository query filters on it** — that is the tenancy boundary (verified by tests). The one deliberate exception is the Recent Tickets view, which is scoped by Jira project rather than by app user, because it reads from Jira.
+Every user-owned table carries `account_id` (`api_keys` today, with `ON DELETE CASCADE` to `accounts`), and **every repository query filters on it** — that is the tenancy boundary (verified by tests). The one deliberate exception is the Recent Tickets view, which is scoped by Jira project rather than by account, because it reads from Jira.
 
 ## Security model
 
@@ -143,11 +143,11 @@ Every user-owned table carries `user_id`, and **every repository query filters o
 | Sign-in | Atlassian OAuth only — no password is stored, hashed, or transmitted, so the entire password attack surface is absent |
 | Sessions | httpOnly + SameSite=Lax cookie, server-side SQLite store, rolling 8h expiry, revocable on logout. **Session id is regenerated at sign-in** — necessary because anonymous sessions exist to hold the OAuth `state`, so without it an attacker could plant a validly-signed id and inherit the session (fixation) |
 | CSRF | SameSite=Lax baseline + Origin-check middleware on state-changing routes + single-use OAuth `state`; `/api/v1` exempt (no cookies — API-key auth) |
-| Jira tokens | AES-256-GCM at rest (fresh IV per encryption, auth tag); never sent to the client; never logged; pending multi-site tokens encrypted even inside the session |
+| Jira tokens | AES-256-GCM at rest (fresh IV per encryption, auth tag); never sent to the client; never logged. Tokens only ever live in the `accounts` row — the session holds nothing but `accountId` and the in-flight OAuth `state` |
 | API keys | 256-bit random with `ihk_` prefix, stored SHA-256-hashed, shown once, revocable, last-used tracking |
 | Public API | Strict shared-schema validation, stable error codes; auth runs before routing (no route enumeration) |
 | Transport hardening | helmet headers, 100kb JSON body limit |
-| Multi-tenancy | All queries scoped by `user_id`; client cache wiped on logout |
+| Multi-tenancy | All queries scoped by `account_id`; client cache wiped on logout |
 
 ## Production evolution
 
