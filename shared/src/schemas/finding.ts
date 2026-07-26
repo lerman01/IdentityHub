@@ -15,19 +15,19 @@ import { IDENTITY_TYPES, SEVERITIES } from '../constants.js';
  */
 export const createFindingSchema = z.object({
   projectKey: z
-    .string()
+    .string('Project key is required')
     .trim()
     .min(1, 'Project key is required')
     .max(50, 'Project key is too long')
     .regex(/^[A-Za-z][A-Za-z0-9_]*$/, 'Must look like a Jira project key, e.g. "SEC"')
     .transform((v) => v.toUpperCase()),
   title: z
-    .string()
+    .string('Title is required')
     .trim()
     .min(1, 'Title is required')
     .max(255, 'Jira limits summaries to 255 characters'),
   description: z
-    .string()
+    .string('Description is required')
     .trim()
     .min(1, 'Description is required')
     .max(30_000, 'Description is too long (30,000 character limit)'),

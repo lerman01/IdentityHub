@@ -17,9 +17,10 @@ export default defineConfig({
     strictPort: true,
     // Same-origin API in dev: the browser only ever talks to :5173, so no CORS.
     // IPv4 explicitly — on some setups `localhost` resolves to ::1 while
-    // Express listens on IPv4.
+    // Express listens on IPv4. Regex with a segment boundary: a bare "/api"
+    // prefix would also swallow SPA routes like /api-keys.
     proxy: {
-      '/api': 'http://127.0.0.1:3000',
+      '^/api/': 'http://127.0.0.1:3000',
     },
   },
 });
