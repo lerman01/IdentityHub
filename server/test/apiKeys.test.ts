@@ -1,0 +1,45 @@
+import { describe, expect, it } from 'vitest';
+import { AppError } from '../src/lib/errors.js';
+import { apiKeyService } from '../src/modules/apiKeys/apiKeyService.js';
+import { createTestUser } from './helpers.js';
+
+describe('apiKeyService', () => {
+  it('creates a key with the ihk_ prefix and a matching hint', () => {
+    const user = createTestUser();
+    const created = apiKeyService.create(user.id, 'ci-scanner');
+    expect(created.key).toMatch(/^ihk_/);
+    expect(created.keyHint).toBe(`ihk_…${created.key.slice(-4)}`);
+    // The plaintext never appears in the list output.
+    const listed = apiKeyService.list(user.id);
+    expect(JSON.stringify(listed)).not.toContain(created.key);
+  });
+
+  it('verifies a valid key and records last use', () => {
+    const user = createTestUser();
+    const created = apiKeyService.create(user.id, 'scanner');
+    const auth = apiKeyService.verify(created.key);
+    expect(auth).toEqual({ userId: user.id, keyId: created.id });
+    expect(apiKeyService.list(user.id)[0]!.lastUsedAt).not.toBeNull();
+  });
+
+  it('rejects unknown, malformed, and revoked keys', () => {
+    const user = createTestUser();
+    const created = apiKeyService.create(user.id, 'to-revoke');
+
+    expect(apiKeyService.verify('ihk_definitely-not-real')).toBeNull();
+    expect(apiKeyService.verify('sk_wrong_prefix')).toBeNull();
+
+    apiKeyService.revoke(user.id, created.id);
+    expect(apiKeyService.verify(created.key)).toBeNull();
+  });
+
+  it("cannot revoke another user's key (tenancy boundary)", () => {
+    const owner = createTestUser();
+    const attacker = createTestUser();
+    const created = apiKeyService.create(owner.id, 'owned');
+
+    expect(() => apiKeyService.revoke(attacker.id, created.id)).toThrow(AppError);
+    // Still valid for the owner.
+    expect(apiKeyService.verify(created.key)).not.toBeNull();
+  });
+});
