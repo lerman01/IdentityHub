@@ -100,6 +100,23 @@ project = SEC AND labels = identityhub ORDER BY created DESC
 
 **Implementation note:** `POST /rest/api/3/search/jql` — the older `/rest/api/3/search` now returns 410 Gone, and the replacement returns no issue fields unless `fields` is listed explicitly. The project key is safe to interpolate into JQL because the shared schema constrains it to `/^[A-Za-z][A-Za-z0-9_]*$/`.
 
+## 9b. "Selects / **writes** a Jira project" — existing projects only (interpretation)
+
+**The ambiguity:** the brief says *"User selects / writes a Jira project from their connected workspace."* That reads two ways — either (a) two input methods for an existing project (pick it from a list, or type its key), or (b) type a key that doesn't exist and we **create** the project.
+
+**Decision: (a).** The project combobox lists the projects the account can see and also accepts a typed key — a workspace with more projects than one page, or a key you already know, both work without hunting. A key that turns out not to exist produces a clear 404 naming it.
+
+**Why not (b) — and this is the interesting half:**
+
+- **The grammar points at (a).** *"from their connected workspace"* selects from something that already exists; creating one would read "in their workspace."
+- **It needs a scope we deliberately don't request.** `POST /rest/api/3/project` requires `manage:jira-project`; our `write:jira-work` covers creating *issues* only. So project creation would mean asking every customer to grant **project-administration** permission so that a tool can file a ticket. For an NHI platform whose entire pitch is finding over-privileged machine identities, requesting admin scope for a convenience feature is precisely the anti-pattern we exist to flag. Least privilege wins.
+- **It would not reliably work anyway.** Atlassian constrains an app to the permissions of the user it acts for, so creation also demands *Administer Jira* global permission. Site owners have it; most members of a security team do not. A feature that 403s for the majority of real users is worse than not having it.
+- **Blast radius.** A typo'd key under (b) leaves a permanent, admin-only-removable artifact in a customer's Jira. Under (a) a typo is a 404 and a corrected keystroke.
+
+**The production answer** is not project creation either: it is a setup step where an admin maps IdentityHub to an existing project once, and everyone else files into it — the same shape as the org-level connection in #3.
+
+*(The brief explicitly invites this call: "You have flexibility to determine which Jira projects and field options to support. Document your decisions so we can evaluate your reasoning.")*
+
 ## 10. Jira fields: labels, not custom fields (scope decision)
 
 **Decision:** Only Title + Description are required (per the assignment). Optional Severity and Identity Type map to **labels** (`severity:high`, `nhi:service-account`), plus a human-readable metadata line in the description. Issue type is resolved per project: prefer **Task**, else **Bug**, else the first non-subtask type.

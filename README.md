@@ -77,7 +77,7 @@ Notes:
 ## Using the app
 
 1. **Sign in with Atlassian** — one click, approve on the consent screen. That authenticates you *and* connects Jira; an Atlassian login that can reach several Jira sites gets a picker (switchable later).
-2. **Pick a project** — searchable dropdown of your projects; you can also *type* any project key directly.
+2. **Pick a project** — searchable dropdown of your projects; you can also *type* any project key directly, which covers workspaces with more projects than one page. Projects must already exist: IdentityHub deliberately does not request the Jira project-admin scope that creating them would need ([why](docs/DECISIONS.md)).
 3. **Report a finding** — title + description (required), severity + identity type (optional). *Fill sample* autofills a realistic NHI finding. The created issue carries the `identityhub` label plus `severity:*` / `nhi:*` labels.
 4. **Recent tickets** — the last 10 findings filed to the selected project *through this app* (UI, API, or digest), each linking into Jira. Read live from Jira via a JQL query on the `identityhub` label, so it always matches reality — there's no local copy to drift ([why](docs/DECISIONS.md)).
 5. **API keys** — create a key (shown once, stored hashed), use it from scanners/CI. A ready-to-run `curl` example is shown on creation. Full reference: [docs/API.md](docs/API.md).

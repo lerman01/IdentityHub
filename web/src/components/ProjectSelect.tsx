@@ -98,8 +98,15 @@ export function ProjectSelect({ projects, isLoading, value, onChange }: Props) {
               ))}
               {typedKeyIsNovel && (
                 <CommandItem value={`use-key-${typedKey}`} onSelect={() => pick(typedKey)}>
-                  <span>
-                    Use project key <span className="font-mono font-medium">{typedKey}</span>
+                  <span className="flex flex-col">
+                    <span>
+                      Use project key <span className="font-mono font-medium">{typedKey}</span>
+                    </span>
+                    {/* Reads as "create it" otherwise — IdentityHub only files into
+                        projects that already exist (docs/DECISIONS.md #9b). */}
+                    <span className="text-xs text-muted-foreground">
+                      Must already exist in Jira
+                    </span>
                   </span>
                 </CommandItem>
               )}

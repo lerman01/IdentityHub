@@ -29,7 +29,8 @@ Approve → you land signed in, with the site shown in the header card.
 
 ## 4. File a finding (2 min) — product thinking
 
-- Pick a project (searchable; note you can also *type* a key — 'select or write' from the brief).
+- Pick a project (searchable; note you can also *type* a key — that's the "select **or write**" in the brief).
+  - Be ready for the follow-up *"did 'write' mean create a project that doesn't exist?"*: **"I read it as two input methods, and I'd have declined the other reading anyway — creating projects needs `manage:jira-project` scope plus Jira admin rights. Asking every customer for project-administration permission so a tool can file a ticket is the over-privileging this product exists to find. It's written up in DECISIONS #9b."**
 - **Fill sample** → realistic NHI finding appears → Create. Success toast with **Open in Jira**.
 - In Jira, show: summary, formatted description with metadata footer, labels `identityhub` / `severity:*` / `nhi:*`.
   - "Labels, not custom fields — works on any customer workspace with zero admin setup. Issue type is resolved per project (Task → Bug → first standard), so team-managed and company-managed projects both just work."
@@ -71,6 +72,7 @@ Approve → you land signed in, with the site shown in the header card.
 | How is a second user's data isolated? | DECISIONS #3 — `user_id` on every query; tests assert it |
 | Why SQLite / no ORM? | DECISIONS #4 |
 | What would change for production? | DECISIONS #15 table |
+| Does "writes a project" mean creating one? | DECISIONS #9b — read as an input method; creation would need project-admin scope |
 | How do you know which tickets your app created? | DECISIONS #9 — the `identityhub` label, queried via JQL |
 | Isn't a label editable? What if someone removes it? | DECISIONS #9 — accepted trade-off, weighed against mirror drift |
 | Two users on the same Jira project see each other's tickets? | Yes, by design — the view is workspace-scoped; credentials/keys/connections stay per-user |
