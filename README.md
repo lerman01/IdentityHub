@@ -93,12 +93,12 @@ curl -X POST http://localhost:3000/api/v1/findings \
 
 ### The blog digest (bonus)
 
-A **standalone script**, external to the UI and to the server process — nothing in the API imports it. Files the newest Oasis Security blog post as a Jira ticket, summarized by Claude when `ANTHROPIC_API_KEY` is set, with an extractive fallback otherwise. Configure in `.env`:
+A **standalone script**, external to the UI and to the server process — nothing in the API imports it. Files the newest Oasis Security blog post as a Jira ticket, summarized by [Groq](https://console.groq.com) when `GROQ_API_KEY` is set, with an extractive fallback otherwise. Configure in `.env`:
 
 ```
 DIGEST_USER_EMAIL=you@yourcompany.com   # an account that has signed in at least once
 DIGEST_PROJECT_KEY=SEC                  # target Jira project
-# ANTHROPIC_API_KEY=sk-ant-...          # optional: AI summaries
+# GROQ_API_KEY=gsk_...                  # optional: AI summaries (free key at console.groq.com)
 ```
 
 Then run it:
@@ -135,7 +135,7 @@ All configuration lives in `.env` (see [.env.example](.env.example) for comments
 | `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET` | for Jira features | Your OAuth app credentials |
 | `ATLASSIAN_CALLBACK_URL` | defaulted | Must match the console exactly |
 | `PORT`, `APP_URL`, `DATABASE_PATH` | defaulted | Ports/paths |
-| `ANTHROPIC_API_KEY`, `DIGEST_MODEL` | optional | AI summaries for the digest |
+| `GROQ_API_KEY`, `DIGEST_MODEL` | optional | AI summaries for the digest (falls back to an extractive excerpt) |
 | `DIGEST_USER_EMAIL`, `DIGEST_PROJECT_KEY` | for the digest | Who files digest tickets, and into which project |
 
 ## Project structure

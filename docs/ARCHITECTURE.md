@@ -20,7 +20,7 @@ flowchart LR
     AT[auth.atlassian.com<br/>OAuth token endpoints]
     JA[api.atlassian.com<br/>Jira Cloud REST v3]
     BLOG[oasis.security/blog]
-    CLAUDE[Anthropic API<br/>optional]
+    GROQ[Groq API<br/>optional]
 
     B -- "session cookie (httpOnly)" --> R
     S -- "API key (Bearer)" --> R
@@ -29,7 +29,7 @@ flowchart LR
     SV --> AT
     D[Digest job<br/>npm run digest / cron] --> SV
     D --> BLOG
-    D --> CLAUDE
+    D --> GROQ
 ```
 
 Three entry points — browser session, API key, digest script — all converge on the **same service layer**. A ticket is created exactly one way (`ticketService.createFinding`), whatever its origin; only the authentication differs.

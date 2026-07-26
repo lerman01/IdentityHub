@@ -10,4 +10,4 @@ process.env.ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
 // Keep external integrations firmly off in tests.
 process.env.ATLASSIAN_CLIENT_ID = '';
 process.env.ATLASSIAN_CLIENT_SECRET = '';
-process.env.ANTHROPIC_API_KEY = '';
+process.env.GROQ_API_KEY = '';
