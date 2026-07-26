@@ -1,27 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from './lib/api';
+import { Navigate, Route, Routes } from 'react-router';
+import { PublicOnly, RequireAuth } from '@/components/AuthGates';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { LoginPage } from '@/pages/LoginPage';
+import { RegisterPage } from '@/pages/RegisterPage';
 
-/**
- * M0 placeholder: proves the full loop (Vite → proxy → Express → SQLite boot)
- * works. Replaced by the real router in M1.
- */
 export function App() {
-  const health = useQuery({
-    queryKey: ['health'],
-    queryFn: () => api.get<{ status: string }>('/api/health'),
-  });
-
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="rounded-xl border bg-card p-8 text-card-foreground shadow-sm">
-        <h1 className="text-2xl font-semibold">IdentityHub</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Scaffold running — API health:{' '}
-          <span className="font-medium text-foreground">
-            {health.isLoading ? 'checking…' : health.isError ? 'unreachable' : health.data?.status}
-          </span>
-        </p>
-      </div>
-    </div>
+    <Routes>
+      <Route element={<PublicOnly />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Route>
+
+      <Route element={<RequireAuth />}>
+        <Route path="/" element={<DashboardPage />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

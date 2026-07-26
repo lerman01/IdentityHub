@@ -4,6 +4,9 @@ import express from 'express';
 import helmet from 'helmet';
 import { env, REPO_ROOT } from './config/env.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errorHandler.js';
+import { originCheck } from './middleware/originCheck.js';
+import { authRouter } from './modules/auth/authRoutes.js';
+import { sessionMiddleware } from './session/index.js';
 
 /**
  * Assembles the Express app. Kept separate from index.ts (which listens) so
@@ -14,14 +17,17 @@ export function createApp() {
 
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
+  app.use(sessionMiddleware);
+  app.use(originCheck);
 
   // ── API routes ─────────────────────────────────────────────────────────────
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: Math.round(process.uptime()) });
   });
 
-  // Feature routers are mounted here as milestones land:
-  //   /api/auth      — app login/logout (M1)
+  app.use('/api/auth', authRouter);
+
+  // Feature routers still to land:
   //   /api/jira      — OAuth flow, connection, projects (M2/M3)
   //   /api/tickets   — create + recent, session-authed (M3/M4)
   //   /api/api-keys  — key management (M5)
