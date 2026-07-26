@@ -23,10 +23,16 @@ type AppSession = Session & Partial<SessionData>;
  * rather than separate "register", "login" and "connect" paths.
  */
 
-/** Outcome of the OAuth callback, translated by the route into a redirect. */
+/**
+ * Outcome of the OAuth callback, translated by the route into a redirect.
+ *
+ * On success the account id is *returned* rather than written onto the
+ * session: the route must regenerate the session id before elevating it, and
+ * regenerate() replaces `req.session` with a fresh object (see jiraRoutes).
+ */
 export type CallbackResult =
-  | { kind: 'signed-in' }
-  | { kind: 'select-site' }
+  | { kind: 'signed-in'; accountId: string }
+  | { kind: 'select-site'; accountId: string }
   | { kind: 'denied' }
   | { kind: 'error'; reason: string };
 
@@ -97,9 +103,10 @@ export async function handleCallback(
     });
   }
 
-  session.accountId = account.id;
   logger.info({ accountId: account.id, sites: sites.length }, 'Signed in with Atlassian');
-  return sites.length === 1 ? { kind: 'signed-in' } : { kind: 'select-site' };
+  return sites.length === 1
+    ? { kind: 'signed-in', accountId: account.id }
+    : { kind: 'select-site', accountId: account.id };
 }
 
 // ── Session / site management ─────────────────────────────────────────────────

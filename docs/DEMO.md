@@ -25,6 +25,7 @@ Approve → you land signed in, with the site shown in the header card.
 
 - "Access tokens live an hour; refresh tokens *rotate* on every use. Refreshes are serialized per account so a race can't burn the rotation. Tokens are AES-256-GCM encrypted at rest and never reach the browser."
 - "The session is still server-side and revocable — I deliberately did *not* put the Atlassian token in a cookie. It expires hourly, it can't be revoked from our side, and validating it per request would couple our uptime to Atlassian's."
+- "And the session id is regenerated at sign-in. That's not boilerplate here: anonymous sessions exist to carry the OAuth `state`, so without regeneration someone could grab a signed session id from `/oauth/start`, plant it, and inherit your session when you logged in."
 
 ## 4. File a finding (2 min) — product thinking
 

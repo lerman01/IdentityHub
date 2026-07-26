@@ -58,7 +58,9 @@ It also deletes a large amount of security-sensitive surface: no password hashin
 
 ## 5. Sessions: server-side store, not the Atlassian token and not a JWT
 
-**Decision:** `express-session` with a custom ~70-line SQLite store; httpOnly SameSite=Lax cookie carrying only a signed session id; rolling 8h expiry; logout destroys the row.
+**Decision:** `express-session` with a custom ~70-line SQLite store; httpOnly SameSite=Lax cookie carrying only a signed session id; rolling 8h expiry; logout destroys the row; **the session id is regenerated at sign-in**.
+
+That last point is load-bearing here rather than boilerplate. This app creates a session for *anonymous* visitors, because the OAuth `state` nonce has to survive the round trip to Atlassian. Without regeneration, an attacker could call `/oauth/start` to obtain a validly-signed session id, plant it in a victim's browser, and inherit the session the moment the victim signed in — textbook session fixation. `regenerate()` also replaces `req.session` with a fresh object, which is why `handleCallback` *returns* the account id for the route to install rather than writing it onto the session itself.
 
 **Why not put the Atlassian access token in the cookie?** It expires in ~1 hour, and its refresh token *rotates* — two tabs refreshing at once would race, one would get `invalid_grant`, and the account's Jira authorization would break. Serializing refreshes requires server-side token storage (see the per-account lock in ARCHITECTURE). The token would also have to be validated against Atlassian on every request (latency, quota, and our uptime coupled to theirs), and the natural fix — caching that validation server-side — *is* a session store. Finally, a stolen session id only grants "act as this account through IdentityHub", which we can revoke instantly; a stolen access token talks to Atlassian directly, bypassing us entirely, and cannot be revoked from our side.
 

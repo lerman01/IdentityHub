@@ -138,7 +138,7 @@ Every user-owned table carries `user_id`, and **every repository query filters o
 | Layer | Mechanism |
 |---|---|
 | Sign-in | Atlassian OAuth only — no password is stored, hashed, or transmitted, so the entire password attack surface is absent |
-| Sessions | httpOnly + SameSite=Lax cookie, server-side SQLite store, session regeneration on login (fixation), rolling 8h expiry |
+| Sessions | httpOnly + SameSite=Lax cookie, server-side SQLite store, rolling 8h expiry, revocable on logout. **Session id is regenerated at sign-in** — necessary because anonymous sessions exist to hold the OAuth `state`, so without it an attacker could plant a validly-signed id and inherit the session (fixation) |
 | CSRF | SameSite=Lax baseline + Origin-check middleware on state-changing routes + single-use OAuth `state`; `/api/v1` exempt (no cookies — API-key auth) |
 | Jira tokens | AES-256-GCM at rest (fresh IV per encryption, auth tag); never sent to the client; never logged; pending multi-site tokens encrypted even inside the session |
 | API keys | 256-bit random with `ihk_` prefix, stored SHA-256-hashed, shown once, revocable, last-used tracking |

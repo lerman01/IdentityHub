@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { type Request, Router } from 'express';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
@@ -24,6 +24,30 @@ function appRedirect(flag: string, reason?: string): string {
   return url.toString();
 }
 
+/**
+ * Issues a brand-new session id, discarding the anonymous one, then marks it
+ * as signed in.
+ *
+ * This is session-fixation protection, and it matters specifically because we
+ * create a session for *anonymous* visitors to hold the OAuth `state` nonce:
+ * an attacker could obtain a validly-signed session id from /oauth/start,
+ * plant it in a victim's browser, and inherit the session once the victim
+ * signed in. Regenerating on privilege elevation breaks that.
+ *
+ * Note `regenerate()` destroys the old session and replaces `req.session`
+ * with a fresh object — so `accountId` must be written to `req.session`
+ * *after* it resolves, never to a reference captured beforehand.
+ */
+function elevateSession(req: Request, accountId: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) return reject(err instanceof Error ? err : new Error(String(err)));
+      req.session.accountId = accountId;
+      resolve();
+    });
+  });
+}
+
 // ── Sign in with Atlassian ────────────────────────────────────────────────────
 // These two are browser NAVIGATIONS, not fetch calls: failures redirect back
 // into the app rather than rendering JSON at a lost user.
@@ -47,17 +71,25 @@ jiraRouter.get('/oauth/callback', async (req, res) => {
       state: str(q.state),
       error: str(q.error),
     });
+
+    // Sign-in succeeded: swap in a fresh session id before trusting it.
+    if (result.kind === 'signed-in' || result.kind === 'select-site') {
+      await elevateSession(req, result.accountId);
+    }
   } catch (err) {
     const reason = err instanceof AppError ? err.code.toLowerCase() : 'unknown';
-    logger.error({ reason, error: err instanceof Error ? err.message : String(err) }, 'Sign-in failed');
+    logger.error(
+      { reason, error: err instanceof Error ? err.message : String(err) },
+      'Sign-in failed',
+    );
     result = { kind: 'error', reason };
   }
 
   const target =
     result.kind === 'error' ? appRedirect('error', result.reason) : appRedirect(result.kind);
 
-  // The callback mutated the session (state consumed, account signed in) —
-  // make sure that's on disk before the browser moves on.
+  // Persist the session (state consumed, or freshly signed in) before the
+  // browser moves on.
   req.session.save(() => res.redirect(target));
 });
 
