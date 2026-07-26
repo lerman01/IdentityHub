@@ -5,12 +5,12 @@ import helmet from 'helmet';
 import { env, REPO_ROOT } from './config/env.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { originCheck } from './middleware/originCheck.js';
-import { authRouter } from './modules/auth/authRoutes.js';
 import { apiKeyRouter } from './modules/apiKeys/apiKeyRoutes.js';
 import { jiraRouter } from './modules/jira/jiraRoutes.js';
 import { ticketRouter } from './modules/tickets/ticketRoutes.js';
 import { publicApiRouter } from './publicApi/v1Routes.js';
 import { sessionMiddleware } from './session/index.js';
+import { sessionRouter } from './session/routes.js';
 
 /**
  * Assembles the Express app. Kept separate from index.ts (which listens) so
@@ -32,7 +32,7 @@ export function createApp() {
   // Browser-facing routes (session cookie + origin check).
   // Sign-in itself lives under /api/jira/oauth — authorizing Atlassian is what
   // creates the account and the session (docs/DECISIONS.md #2).
-  app.use('/api/auth', authRouter);
+  app.use('/api/auth', sessionRouter);
   app.use('/api/jira', jiraRouter);
   app.use('/api/tickets', ticketRouter);
   app.use('/api/api-keys', apiKeyRouter);

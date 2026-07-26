@@ -7,7 +7,7 @@ import {
   type TicketSource,
 } from '@identityhub/shared';
 import { accountRepo } from '../../db/repositories/accountRepo.js';
-import { textToAdf } from '../../lib/adf.js';
+import { textToAdf } from '../jira/adf.js';
 import { AppError, conflict, notFound } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { createIssue, getProject, searchAppIssues } from '../jira/jiraClient.js';
