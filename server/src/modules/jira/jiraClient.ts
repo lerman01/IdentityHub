@@ -105,3 +105,64 @@ export async function jiraFetch<T>(
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+// ── Typed Jira API calls ──────────────────────────────────────────────────────
+
+interface ProjectSearchResponse {
+  values: Array<{
+    id: string;
+    key: string;
+    name: string;
+    avatarUrls?: Record<string, string>;
+  }>;
+}
+
+/**
+ * Projects the user can see (Jira applies its own permission filtering).
+ * One page of 50, ordered by key — plenty for a picker; the UI also accepts a
+ * typed key for anything beyond it.
+ */
+export async function searchProjects(userId: string, query?: string) {
+  const params = new URLSearchParams({ maxResults: '50', orderBy: 'key' });
+  if (query) params.set('query', query);
+  const data = await jiraFetch<ProjectSearchResponse>(
+    userId,
+    `/rest/api/3/project/search?${params.toString()}`,
+  );
+  return data.values.map((p) => ({
+    id: p.id,
+    key: p.key,
+    name: p.name,
+    avatarUrl: p.avatarUrls?.['16x16'],
+  }));
+}
+
+interface ProjectWithIssueTypes {
+  id: string;
+  key: string;
+  name: string;
+  issueTypes?: Array<{ id: string; name: string; subtask: boolean }>;
+}
+
+/** Also serves as project-existence validation (404 → mapped error). */
+export function getProject(userId: string, projectKey: string): Promise<ProjectWithIssueTypes> {
+  return jiraFetch<ProjectWithIssueTypes>(
+    userId,
+    `/rest/api/3/project/${encodeURIComponent(projectKey)}?expand=issueTypes`,
+  );
+}
+
+export interface CreatedIssue {
+  id: string;
+  key: string;
+}
+
+export function createIssue(
+  userId: string,
+  fields: Record<string, unknown>,
+): Promise<CreatedIssue> {
+  return jiraFetch<CreatedIssue>(userId, '/rest/api/3/issue', {
+    method: 'POST',
+    body: { fields },
+  });
+}

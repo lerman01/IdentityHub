@@ -17,7 +17,10 @@ export default tseslint.config(
     rules: {
       // Server logs deliberately; the web app goes through the api client.
       'no-console': 'off',
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       // `any` is banned except where a third-party type forces it (annotated case by case).
       '@typescript-eslint/no-explicit-any': 'error',
     },

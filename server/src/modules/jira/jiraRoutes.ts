@@ -4,6 +4,7 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
+import { searchProjects } from './jiraClient.js';
 import {
   disconnect,
   getStatus,
@@ -83,4 +84,11 @@ jiraRouter.post('/site', requireAuth, async (req, res) => {
 jiraRouter.delete('/connection', requireAuth, (req, res) => {
   disconnect(req.session.userId!);
   res.status(204).end();
+});
+
+const projectsQuerySchema = z.object({ query: z.string().trim().max(100).optional() });
+
+jiraRouter.get('/projects', requireAuth, async (req, res) => {
+  const { query } = projectsQuerySchema.parse(req.query);
+  res.json(await searchProjects(req.session.userId!, query));
 });
