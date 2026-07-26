@@ -33,10 +33,6 @@ Validation failures include per-field details:
 }
 ```
 
-## Rate limits
-
-60 requests/minute per client on `/api/v1/*`. Exceeding it returns `429 RATE_LIMITED` with standard `RateLimit-*` headers.
-
 ---
 
 ## POST /api/v1/findings
@@ -67,7 +63,7 @@ Also note `GET` returns **409 `JIRA_NOT_CONNECTED`** if the key owner has no Jir
 | 404 | `NOT_FOUND` | Project not visible in the connected Jira (message names the key) |
 | 409 | `JIRA_NOT_CONNECTED` | Key owner hasn't connected a Jira workspace |
 | 409 | `JIRA_RECONNECT_REQUIRED` | Jira authorization expired/revoked — reconnect in the app |
-| 429 | `RATE_LIMITED` / `JIRA_RATE_LIMITED` | Our limit / Jira's limit |
+| 429 | `JIRA_RATE_LIMITED` | Jira is rate-limiting us; retry shortly |
 | 502 | `JIRA_UNAVAILABLE` / `JIRA_UNREACHABLE` | Upstream Jira problems |
 
 ### Example

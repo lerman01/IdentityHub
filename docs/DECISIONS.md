@@ -134,7 +134,8 @@ project = SEC AND labels = identityhub ORDER BY created DESC
 | Server runs via `tsx` (no build step) | One less moving part for the reviewer; typecheck runs separately | `tsc`/esbuild build, node runtime |
 | `secure: false` on the session cookie | Demo runs on `http://localhost` | TLS everywhere, `secure: true`, HSTS |
 | CSRF = SameSite=Lax + Origin check (no token) | Correct for same-origin SPA + modern browsers | Add per-session CSRF tokens if embedding/legacy browsers matter |
-| In-process refresh lock & rate limits | Single-process POC | Redis/Postgres locks, shared rate limiter |
+| In-process token-refresh lock | Single-process POC | Redis/Postgres lock |
+| No rate limiting | Not in the brief, and a POC on localhost has no abuse surface | A shared limiter at the edge (gateway or Redis-backed), which is where it belongs rather than in app code |
 | Schema-at-boot instead of migrations | Schema is stable within the exercise | drizzle-kit / Prisma Migrate / raw SQL migrations |
 | Console-based logger | Zero deps; "no secrets logged" is verifiable in one file | pino + structured shipping, request ids |
 | Recent-tickets panel is a live Jira query, so it depends on Jira being reachable | No mirror means no drift (#9); an empty panel beats a wrong one | Add a write-only audit log beside it, and cache reads with a short TTL |

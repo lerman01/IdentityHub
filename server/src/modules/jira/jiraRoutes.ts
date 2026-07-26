@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
-import { authLimiter } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { searchProjects } from './jiraClient.js';
 import {
@@ -29,7 +28,7 @@ function appRedirect(flag: string, reason?: string): string {
 // These two are browser NAVIGATIONS, not fetch calls: failures redirect back
 // into the app rather than rendering JSON at a lost user.
 
-jiraRouter.get('/oauth/start', authLimiter, (req, res, next) => {
+jiraRouter.get('/oauth/start', (req, res, next) => {
   if (!env.jiraOAuthConfigured) return res.redirect(appRedirect('error', 'not-configured'));
 
   const authorizeUrl = startOAuth(req.session);

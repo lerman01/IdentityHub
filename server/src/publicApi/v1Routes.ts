@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createFindingSchema } from '@identityhub/shared';
-import { publicApiLimiter } from '../middleware/rateLimit.js';
 import { requireApiKey } from '../middleware/requireApiKey.js';
 import { ticketService } from '../modules/tickets/ticketService.js';
 
@@ -13,12 +12,10 @@ import { ticketService } from '../modules/tickets/ticketService.js';
  * - POST /api/v1/findings          → 201 { id, issueKey, url }
  * - GET  /api/v1/findings?projectKey=…&limit=… → recent tickets created here
  * - Errors: shared JSON envelope with stable codes and actionable messages
- *   (400 validation, 401 key, 404 project, 409 no Jira connection,
- *    429 rate limit, 502 Jira upstream)
+ *   (400 validation, 401 key, 404 project, 409 no Jira site, 502 Jira upstream)
  */
 export const publicApiRouter = Router();
 
-publicApiRouter.use(publicApiLimiter);
 publicApiRouter.use(requireApiKey);
 
 publicApiRouter.post('/findings', async (req, res) => {

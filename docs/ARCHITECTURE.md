@@ -142,8 +142,8 @@ Every user-owned table carries `user_id`, and **every repository query filters o
 | CSRF | SameSite=Lax baseline + Origin-check middleware on state-changing routes + single-use OAuth `state`; `/api/v1` exempt (no cookies — API-key auth) |
 | Jira tokens | AES-256-GCM at rest (fresh IV per encryption, auth tag); never sent to the client; never logged; pending multi-site tokens encrypted even inside the session |
 | API keys | 256-bit random with `ihk_` prefix, stored SHA-256-hashed, shown once, revocable, last-used tracking |
-| Public API | Strict shared-schema validation, rate limiting, stable error codes; auth runs before routing (no route enumeration) |
-| Transport hardening | helmet headers, 100kb JSON body limit, auth-endpoint rate limits |
+| Public API | Strict shared-schema validation, stable error codes; auth runs before routing (no route enumeration) |
+| Transport hardening | helmet headers, 100kb JSON body limit |
 | Multi-tenancy | All queries scoped by `user_id`; client cache wiped on logout |
 
 ## Production evolution
