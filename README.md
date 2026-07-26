@@ -95,22 +95,21 @@ curl -X POST http://localhost:3000/api/v1/findings \
 
 ### The blog digest (bonus)
 
-Files the newest Oasis Security blog post as a Jira ticket — summarized by Claude when `ANTHROPIC_API_KEY` is set, with an extractive fallback otherwise. Configure in `.env`:
+A **standalone script**, external to the UI and to the server process — nothing in the API imports it. Files the newest Oasis Security blog post as a Jira ticket, summarized by Claude when `ANTHROPIC_API_KEY` is set, with an extractive fallback otherwise. Configure in `.env`:
 
 ```
 DIGEST_USER_EMAIL=demo@identityhub.local   # an app user who has connected Jira
 DIGEST_PROJECT_KEY=SEC                     # target Jira project
 # ANTHROPIC_API_KEY=sk-ant-...             # optional: AI summaries
-# DIGEST_CRON=0 9 * * 1                    # optional: run inside the server on a schedule
 ```
 
-Then run it manually any time:
+Then run it:
 
 ```bash
 npm run digest
 ```
 
-It is idempotent — one ticket per blog post, ever, no matter how often it runs.
+To put it on a schedule, use whatever the host already has — cron, Task Scheduler, a CI cron job. The app deliberately doesn't ship a scheduler.
 
 ---
 
@@ -121,7 +120,7 @@ It is idempotent — one ticket per blog post, ever, no matter how often it runs
 | `npm run setup` | Create `.env` from `.env.example` with fresh secrets (no-op if `.env` exists) |
 | `npm run dev` | Run API (`:3000`) + web dev server (`:5173`) with hot reload |
 | `npm run seed` | Create the demo login (idempotent) |
-| `npm run digest` | Run the blog digest once |
+| `npm run digest` | Run the blog digest once (standalone, independent of the server) |
 | `npm test` | Run the server test suite (50 tests) |
 | `npm run typecheck` | TypeScript across all workspaces |
 | `npm run lint` | ESLint across the repo |
@@ -140,7 +139,7 @@ All configuration lives in `.env` (see [.env.example](.env.example) for comments
 | `ATLASSIAN_CALLBACK_URL` | defaulted | Must match the console exactly |
 | `PORT`, `APP_URL`, `DATABASE_PATH` | defaulted | Ports/paths |
 | `ANTHROPIC_API_KEY`, `DIGEST_MODEL` | optional | AI summaries for the digest |
-| `DIGEST_USER_EMAIL`, `DIGEST_PROJECT_KEY`, `DIGEST_CRON` | for the digest | Who files digest tickets, where, and when |
+| `DIGEST_USER_EMAIL`, `DIGEST_PROJECT_KEY` | for the digest | Who files digest tickets, and into which project |
 
 ## Project structure
 

@@ -49,10 +49,3 @@ CREATE TABLE IF NOT EXISTS api_keys (
   last_used_at TEXT,
   revoked_at   TEXT
 );
-
--- Idempotency ledger for the blog-digest job: one ticket per blog post, ever.
-CREATE TABLE IF NOT EXISTS digest_state (
-  post_url   TEXT PRIMARY KEY,
-  issue_key  TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);

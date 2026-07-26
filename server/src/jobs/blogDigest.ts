@@ -1,6 +1,5 @@
 import { createFindingSchema } from '@identityhub/shared';
 import { env } from '../config/env.js';
-import { digestStateRepo } from '../db/repositories/digestStateRepo.js';
 import { jiraConnectionRepo } from '../db/repositories/jiraConnectionRepo.js';
 import { userRepo } from '../db/repositories/userRepo.js';
 import { logger } from '../lib/logger.js';
@@ -12,18 +11,23 @@ import { summarizePost } from './summarizer.js';
  * "NHI Blog Digest" (bonus feature): fetch the newest post from
  * oasis.security/blog, summarize it, and file it as a Jira ticket.
  *
+ * Standalone by design — the assignment notes this is external to the UI, so
+ * it has its own entry point (`npm run digest` → runDigest.ts) and the server
+ * never imports it.
+ *
  * Design decisions (docs/DECISIONS.md):
  * - Runs as the app user named in DIGEST_USER_EMAIL and reuses that user's
  *   OAuth connection + the shared ticketService — the digest is just another
  *   ticket source ('digest'), not a parallel code path.
- * - Idempotent via digest_state: one ticket per post URL, ever. Safe on any
- *   schedule.
  * - AI summary with extractive fallback: works with or without an API key.
  */
 
-export type DigestResult =
-  | { status: 'created'; issueKey: string; url: string; postTitle: string; method: string }
-  | { status: 'skipped'; reason: string; postTitle: string };
+export interface DigestResult {
+  issueKey: string;
+  url: string;
+  postTitle: string;
+  method: string;
+}
 
 class DigestConfigError extends Error {}
 
@@ -47,7 +51,7 @@ export async function runBlogDigest(): Promise<DigestResult> {
   const user = userRepo.findByEmail(userEmail.toLowerCase());
   if (!user) {
     throw new DigestConfigError(
-      `No IdentityHub user with email "${userEmail}". Register that account in the app first ` +
+      `No IdentityHub user with email "${userEmail}". Sign in to the app as that user first ` +
         '(or point DIGEST_USER_EMAIL at an existing account).',
     );
   }
@@ -62,15 +66,6 @@ export async function runBlogDigest(): Promise<DigestResult> {
   logger.info('Digest: fetching latest blog post…');
   const post = await fetchLatestPost();
 
-  if (digestStateRepo.hasProcessed(post.url)) {
-    const last = digestStateRepo.last();
-    return {
-      status: 'skipped',
-      reason: `Already filed as ${last?.issue_key ?? 'a ticket'} — no new post since.`,
-      postTitle: post.title,
-    };
-  }
-
   logger.info({ post: post.title }, 'Digest: summarizing');
   const summary = await summarizePost(post.title, post.text);
 
@@ -82,10 +77,8 @@ export async function runBlogDigest(): Promise<DigestResult> {
   });
 
   const created = await ticketService.createFinding(user.id, input, 'digest');
-  digestStateRepo.record(post.url, created.issueKey);
 
   return {
-    status: 'created',
     issueKey: created.issueKey,
     url: created.url,
     postTitle: post.title,

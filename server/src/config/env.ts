@@ -42,7 +42,6 @@ const envSchema = z.object({
   DIGEST_MODEL: z.string().default('claude-opus-5'),
   DIGEST_USER_EMAIL: optional(z.email()),
   DIGEST_PROJECT_KEY: optional(z.string()),
-  DIGEST_CRON: optional(z.string()),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -50,7 +50,7 @@ A suggested walkthrough for presenting the project, with the talking points that
 ## 6. Blog digest bonus (1.5 min)
 
 - `npm run digest` → creates "NHI Blog Digest: …" ticket (AI summary if key set, extractive otherwise — "the AI is an enhancement, not a dependency").
-- Run it again → `Skipped: already filed as …` — "idempotent by post URL, safe on any schedule; DIGEST_CRON runs it in-process."
+- "It's a standalone script — the server doesn't import it, since the assignment says the digest is external to the UI. Scheduling it is the host's job: cron, Task Scheduler, a CI cron. I don't need a scheduler inside the app."
 - "It runs as a regular app user through the same ticketService — a third source, not a parallel pipeline. Note the **Digest** badge in Recent Tickets."
 
 ## 7. Architecture close (1 min)

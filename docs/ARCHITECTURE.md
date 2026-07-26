@@ -126,9 +126,8 @@ sequenceDiagram
 | `sessions` | Server-side session store | `sid`, JSON `data`, `expires_at` |
 | `jira_connections` | One Jira link per user | `cloud_id`, `site_url`, `access_token_enc`, `refresh_token_enc` (AES-256-GCM), `access_token_expires_at` |
 | `api_keys` | Public-API credentials | `key_hash` (SHA-256), `key_hint`, `revoked_at`, `last_used_at` |
-| `digest_state` | Digest idempotency ledger | `post_url` PK, `issue_key` |
 
-Note what is *absent*: there is no `tickets` table. Findings live in Jira and nowhere else (#9).
+Note what is *absent*: no `tickets` table (findings live in Jira and nowhere else, #9) and no digest bookkeeping (the digest is a standalone script, #12).
 
 Every user-owned table carries `user_id`, and **every repository query filters on it** — that is the tenancy boundary (verified by tests). The one deliberate exception is the Recent Tickets view, which is scoped by Jira project rather than by app user, because it reads from Jira.
 

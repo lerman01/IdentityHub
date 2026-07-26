@@ -100,8 +100,7 @@ project = SEC AND labels = identityhub ORDER BY created DESC
 - **Scraping, not RSS** — the blog has no feed. Selectors are structure-based (`/blog/<slug>` links, `og:title`) rather than styling-class-based, with fallbacks, because marketing sites change CSS far more often than URL structure.
 - **AI summary with extractive fallback** — Claude summarizes when `ANTHROPIC_API_KEY` is set (model configurable via `DIGEST_MODEL`); otherwise, or on any API failure, the first sentences of the post are used. The demo never breaks on a missing key.
 - **Runs as an app user** (`DIGEST_USER_EMAIL`) and calls the same `ticketService` with `source: 'digest'` — the digest is a third ticket source, not a parallel pipeline, so it exercises the same connection, refresh, and labeling logic.
-- **Idempotent** — `digest_state` keys on post URL: one ticket per post ever, safe under any schedule.
-- **Triggers:** manual `npm run digest` (demo-friendly, external to the UI as the assignment requires) plus an optional in-process cron (`DIGEST_CRON`).
+- **Its own entry point, not part of the server.** The assignment notes the digest is external to the UI, so `npm run digest` runs it as a standalone script and nothing in the API imports it. An earlier revision had an in-process `node-cron` scheduler and a `digest_state` idempotency ledger; both were removed as unnecessary weight — scheduling belongs to whatever the host already runs (cron, Task Scheduler, CI), and a manually-invoked script doesn't need a dedupe table. Consequence, accepted: running it twice files two tickets for the same post.
 
 ## 13. Validation: shared Zod schemas as the single source of truth
 
@@ -118,7 +117,7 @@ project = SEC AND labels = identityhub ORDER BY created DESC
 | Server runs via `tsx` (no build step) | One less moving part for the reviewer; typecheck runs separately | `tsc`/esbuild build, node runtime |
 | `secure: false` on the session cookie | Demo runs on `http://localhost` | TLS everywhere, `secure: true`, HSTS |
 | CSRF = SameSite=Lax + Origin check (no token) | Correct for same-origin SPA + modern browsers | Add per-session CSRF tokens if embedding/legacy browsers matter |
-| In-process refresh lock & cron & rate limits | Single-process POC | Redis/Postgres locks, external scheduler, shared rate limiter |
+| In-process refresh lock & rate limits | Single-process POC | Redis/Postgres locks, shared rate limiter |
 | Schema-at-boot instead of migrations | Schema is stable within the exercise | drizzle-kit / Prisma Migrate / raw SQL migrations |
 | Console-based logger | Zero deps; "no secrets logged" is verifiable in one file | pino + structured shipping, request ids |
 | Recent-tickets panel is a live Jira query, so it depends on Jira being reachable | No mirror means no drift (#9); an empty panel beats a wrong one | Add a write-only audit log beside it, and cache reads with a short TTL |

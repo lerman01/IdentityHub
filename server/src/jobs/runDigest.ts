@@ -2,23 +2,21 @@ import { AppError } from '../lib/errors.js';
 import { DigestConfigError, runBlogDigest } from './blogDigest.js';
 
 /**
- * CLI entry point: `npm run digest`. The same job can also run on a schedule
- * inside the server process (set DIGEST_CRON in .env).
+ * Entry point for the bonus feature: `npm run digest`.
+ *
+ * Deliberately separate from the server process — the assignment notes the
+ * digest is external to the UI, so nothing in the API imports it. Schedule it
+ * with whatever the host already has (cron, Task Scheduler, a CI job) rather
+ * than building a scheduler into the app.
  */
 
 console.log('IdentityHub — NHI Blog Digest\n');
 
 try {
   const result = await runBlogDigest();
-
-  if (result.status === 'created') {
-    console.log(`✔ Created ${result.issueKey} (${result.method} summary)`);
-    console.log(`  Post:   ${result.postTitle}`);
-    console.log(`  Ticket: ${result.url}\n`);
-  } else {
-    console.log(`• Skipped: ${result.reason}`);
-    console.log(`  Latest post: ${result.postTitle}\n`);
-  }
+  console.log(`✔ Created ${result.issueKey} (${result.method} summary)`);
+  console.log(`  Post:   ${result.postTitle}`);
+  console.log(`  Ticket: ${result.url}\n`);
   process.exit(0);
 } catch (err) {
   if (err instanceof DigestConfigError) {

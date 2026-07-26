@@ -11,4 +11,3 @@ process.env.ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
 process.env.ATLASSIAN_CLIENT_ID = '';
 process.env.ATLASSIAN_CLIENT_SECRET = '';
 process.env.ANTHROPIC_API_KEY = '';
-process.env.DIGEST_CRON = '';
