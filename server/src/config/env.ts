@@ -39,6 +39,7 @@ const envSchema = z.object({
   DATABASE_PATH: z.string().default('./data/identityhub.db'),
 
   ANTHROPIC_API_KEY: optional(z.string()),
+  DIGEST_MODEL: z.string().default('claude-opus-5'),
   DIGEST_USER_EMAIL: optional(z.email()),
   DIGEST_PROJECT_KEY: optional(z.string()),
   DIGEST_CRON: optional(z.string()),
