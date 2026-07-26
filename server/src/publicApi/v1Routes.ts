@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { createFindingSchema } from '@identityhub/shared';
+import { createFindingSchema, projectKeySchema } from '@identityhub/shared';
 import { requireApiKey } from '../middleware/requireApiKey.js';
 import { ticketService } from '../modules/tickets/ticketService.js';
 
@@ -25,12 +25,9 @@ publicApiRouter.post('/findings', async (req, res) => {
 });
 
 const listQuerySchema = z.object({
-  projectKey: z
-    .string()
-    .trim()
-    .min(1, 'projectKey is required')
-    .max(50)
-    .transform((v) => v.toUpperCase()),
+  // The shared schema, not a local "short string" copy: this value is
+  // interpolated into JQL downstream (shared/schemas/finding.ts).
+  projectKey: projectKeySchema,
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
 

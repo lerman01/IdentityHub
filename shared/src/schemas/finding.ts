@@ -13,14 +13,23 @@ import { IDENTITY_TYPES, SEVERITIES } from '../constants.js';
  * - `projectKey` is validated loosely (shape only) — Jira remains the source of
  *   truth for which keys exist, and its errors are surfaced clearly instead.
  */
+/**
+ * Shape of a Jira project key, exported on its own because the read paths
+ * interpolate the key straight into a JQL string. The regex is what makes that
+ * safe — it admits no quotes, spaces or operators — so every route whose value
+ * can reach JQL must parse through *this* schema rather than a local copy of
+ * "a short string" (docs/DECISIONS.md #9, #13).
+ */
+export const projectKeySchema = z
+  .string('Project key is required')
+  .trim()
+  .min(1, 'Project key is required')
+  .max(50, 'Project key is too long')
+  .regex(/^[A-Za-z][A-Za-z0-9_]*$/, 'Must look like a Jira project key, e.g. "SEC"')
+  .transform((v) => v.toUpperCase());
+
 export const createFindingSchema = z.object({
-  projectKey: z
-    .string('Project key is required')
-    .trim()
-    .min(1, 'Project key is required')
-    .max(50, 'Project key is too long')
-    .regex(/^[A-Za-z][A-Za-z0-9_]*$/, 'Must look like a Jira project key, e.g. "SEC"')
-    .transform((v) => v.toUpperCase()),
+  projectKey: projectKeySchema,
   title: z
     .string('Title is required')
     .trim()

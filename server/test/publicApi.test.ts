@@ -133,4 +133,23 @@ describe('GET /api/v1/findings', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
+
+  // The project key is interpolated into a JQL string (jiraClient.searchAppIssues),
+  // so the shared regex is load-bearing security, not just input tidiness:
+  // anything carrying a space, quote or operator must never reach Jira.
+  it.each([
+    'SEC ORDER BY created ASC',
+    'X OR labels=identityhub',
+    'SEC" OR "1"="1',
+    'SEC AND labels != identityhub',
+  ])('rejects JQL injection through projectKey: %s', async (projectKey) => {
+    const { key } = makeUserWithKey();
+    const res = await request(app)
+      .get(`/api/v1/findings?projectKey=${encodeURIComponent(projectKey)}`)
+      .set('Authorization', `Bearer ${key}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    expect(jiraClient.searchAppIssues).not.toHaveBeenCalled();
+  });
 });

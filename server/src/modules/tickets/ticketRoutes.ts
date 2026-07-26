@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { createFindingSchema } from '@identityhub/shared';
+import { createFindingSchema, projectKeySchema } from '@identityhub/shared';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { ticketService } from './ticketService.js';
 
@@ -16,10 +16,12 @@ ticketRouter.post('/', async (req, res) => {
 });
 
 const recentQuerySchema = z.object({
-  projectKey: z.string().trim().min(1, 'projectKey is required').max(50),
+  // The shared schema, not a local "short string" copy: this value is
+  // interpolated into JQL downstream (shared/schemas/finding.ts).
+  projectKey: projectKeySchema,
 });
 
 ticketRouter.get('/recent', async (req, res) => {
   const { projectKey } = recentQuerySchema.parse(req.query);
-  res.json(await ticketService.listRecent(req.session.accountId!, projectKey.toUpperCase(), 10));
+  res.json(await ticketService.listRecent(req.session.accountId!, projectKey, 10));
 });
