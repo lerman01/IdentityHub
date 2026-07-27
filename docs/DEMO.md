@@ -7,7 +7,7 @@ A suggested walkthrough for presenting the project, with the talking points that
 - [ ] `npm run dev` running; signed out; browser at `http://localhost:5173`
 - [ ] Atlassian OAuth app configured in `.env`; your Jira site reachable
 - [ ] A terminal ready for the `curl` + digest steps
-- [ ] Optional: `GROQ_API_KEY` + `DIGEST_USER_EMAIL`/`DIGEST_PROJECT_KEY` set for the AI digest finale
+- [ ] For the AI digest finale: `GROQ_API_KEY` + `DIGEST_USER_EMAIL`/`DIGEST_PROJECT_KEY` set (all three are required — the digest exits without them)
 
 ## 1. Frame it (30s)
 

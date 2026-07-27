@@ -18,7 +18,9 @@ import { summarizePost } from './summarizer.js';
  * - Runs as the app user named in DIGEST_USER_EMAIL and reuses that user's
  *   OAuth connection + the shared ticketService — the digest is just another
  *   ticket source ('digest'), not a parallel code path.
- * - AI summary with extractive fallback: works with or without an API key.
+ * - GROQ_API_KEY is required: the digest refuses to run without it rather than
+ *   filing a ticket whose "summary" is a raw excerpt. The extractive summary
+ *   survives only as the fallback for a Groq call that fails mid-run.
  */
 
 interface DigestResult {
@@ -32,13 +34,14 @@ class DigestConfigError extends Error {}
 
 function requireConfig(): { userEmail: string; projectKey: string } {
   const missing: string[] = [];
+  if (!env.GROQ_API_KEY) missing.push('GROQ_API_KEY');
   if (!env.DIGEST_USER_EMAIL) missing.push('DIGEST_USER_EMAIL');
   if (!env.DIGEST_PROJECT_KEY) missing.push('DIGEST_PROJECT_KEY');
   if (missing.length > 0) {
     throw new DigestConfigError(
-      `Missing ${missing.join(' and ')} in .env. The digest files tickets as an existing ` +
-        'app user: set DIGEST_USER_EMAIL to that user and DIGEST_PROJECT_KEY to the target ' +
-        'Jira project key.',
+      `Missing ${missing.join(', ')} in .env. The digest summarizes with Groq ` +
+        '(free key at console.groq.com) and files tickets as an existing app user: set ' +
+        'DIGEST_USER_EMAIL to that user and DIGEST_PROJECT_KEY to the target Jira project key.',
     );
   }
   return { userEmail: env.DIGEST_USER_EMAIL!, projectKey: env.DIGEST_PROJECT_KEY! };

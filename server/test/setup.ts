@@ -12,5 +12,6 @@ process.env.ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
 // mocks the module (see oauthState.test.ts).
 process.env.ATLASSIAN_CLIENT_ID = 'test-client-id';
 process.env.ATLASSIAN_CLIENT_SECRET = 'test-client-secret';
-// Keep the optional AI integration firmly off.
-process.env.GROQ_API_KEY = '';
+// The digest requires a Groq key; tests stub fetch, so this is never used
+// against the network (see summarizer.test.ts).
+process.env.GROQ_API_KEY = 'test-groq-key';

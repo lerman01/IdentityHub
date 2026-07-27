@@ -4,10 +4,10 @@ import { logger } from '../../utils/logger.js';
 /**
  * Summarizes a blog post for the digest ticket.
  *
- * Uses Groq's OpenAI-compatible chat-completions endpoint when GROQ_API_KEY is
- * configured; otherwise — or on any API failure — falls back to an extractive
- * summary so the digest never breaks. The AI is an enhancement, not a
- * dependency (docs/DECISIONS.md #12).
+ * Uses Groq's OpenAI-compatible chat-completions endpoint. GROQ_API_KEY is
+ * checked before the run starts (see service.ts), so by the time we get here a
+ * key exists; if the call itself fails, an extractive summary keeps the run
+ * from losing the post it already fetched (docs/DECISIONS.md #12).
  *
  * Called with plain fetch rather than an SDK: it is one request with one
  * prompt, the failure path is already handled, and it keeps the dependency
@@ -27,7 +27,7 @@ interface Summary {
 }
 
 export async function summarizePost(title: string, content: string): Promise<Summary> {
-  if (env.GROQ_API_KEY && content.length > 0) {
+  if (content.length > 0) {
     try {
       return { text: await groqSummary(title, content), method: 'ai' };
     } catch (err) {
@@ -89,7 +89,7 @@ async function groqSummary(title: string, content: string): Promise<string> {
   return text;
 }
 
-/** First few sentences of the post — always works, no API key required. */
+/** First few sentences of the post — the fallback when the Groq call fails. */
 function extractiveSummary(content: string): string {
   const compact = content.replace(/\s+/g, ' ').trim();
   if (!compact) return '(No article text could be extracted.)';
@@ -101,5 +101,5 @@ function extractiveSummary(content: string): string {
     summary += sentence;
   }
 
-  return `${(summary || compact.slice(0, 700)).trim()}\n\n(Automatic excerpt — set GROQ_API_KEY in .env for AI-generated summaries.)`;
+  return `${(summary || compact.slice(0, 700)).trim()}\n\n(Automatic excerpt — the AI summary was unavailable when this ticket was filed.)`;
 }

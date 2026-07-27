@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { summarizePost } from '../src/modules/digest/summarizer.js';
 
 /**
- * The test env has no GROQ_API_KEY (see setup.ts), so these exercise the
- * fallback that keeps the digest working without an AI provider — the whole
- * point of the design (docs/DECISIONS.md #12). No network is touched.
+ * GROQ_API_KEY is required to start a digest run (docs/DECISIONS.md #12), so
+ * the interesting case here is the one that survives it: a Groq call that
+ * fails mid-run must still produce a usable ticket body. Every test stubs
+ * fetch — no network is touched.
  */
 
 const POST = [
@@ -13,30 +14,23 @@ const POST = [
   'Depending on configuration that ranged from copying private conversations to running code.',
 ].join(' ');
 
+beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down'))));
 afterEach(() => vi.unstubAllGlobals());
 
-describe('summarizePost without an API key', () => {
+describe('summarizePost when Groq is unreachable', () => {
   it('falls back to an extractive summary', async () => {
     const summary = await summarizePost('PromptFiction', POST);
 
     expect(summary.method).toBe('extractive');
     expect(summary.text).toContain('PromptFiction was a one-click flaw');
-    expect(summary.text).toContain('GROQ_API_KEY');
-  });
-
-  it('never calls out to the network', async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-
-    await summarizePost('PromptFiction', POST);
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(summary.text).toContain('the AI summary was unavailable');
   });
 
   it('caps the excerpt rather than pasting the whole article', async () => {
     const long = 'This sentence is padding for the length cap. '.repeat(200);
     const summary = await summarizePost('Long post', long);
 
-    // 700-char budget plus the trailing hint line.
+    // 700-char budget plus the trailing note line.
     expect(summary.text.length).toBeLessThan(900);
   });
 
@@ -45,11 +39,30 @@ describe('summarizePost without an API key', () => {
 
     expect(summary.method).toBe('extractive');
     expect(summary.text).toContain('No article text could be extracted');
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('handles text with no sentence punctuation', async () => {
     const summary = await summarizePost('No punctuation', 'just a bare fragment with no full stop');
 
     expect(summary.text).toContain('just a bare fragment');
+  });
+});
+
+describe('summarizePost when Groq answers', () => {
+  it('returns the model summary', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: '  • A model-written summary.  ' } }] }),
+      }),
+    );
+
+    const summary = await summarizePost('PromptFiction', POST);
+
+    expect(summary.method).toBe('ai');
+    expect(summary.text).toBe('• A model-written summary.');
   });
 });

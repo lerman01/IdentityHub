@@ -20,7 +20,7 @@ flowchart LR
     AT[auth.atlassian.com<br/>OAuth token endpoints]
     JA[api.atlassian.com<br/>Jira Cloud REST v3]
     BLOG[oasis.security/blog]
-    GROQ[Groq API<br/>optional]
+    GROQ[Groq API<br/>required by the digest]
 
     B -- "session cookie (httpOnly)" --> R
     S -- "API key (Bearer)" --> R

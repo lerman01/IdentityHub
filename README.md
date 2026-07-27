@@ -95,12 +95,12 @@ curl -X POST http://localhost:3000/api/v1/findings \
 
 ### The blog digest (bonus)
 
-A **standalone script**, external to the UI and to the server process — nothing in the API imports it. Files the newest Oasis Security blog post as a Jira ticket, summarized by [Groq](https://console.groq.com) when `GROQ_API_KEY` is set, with an extractive fallback otherwise. Configure in `.env`:
+A **standalone script**, external to the UI and to the server process — nothing in the API imports it. Files the newest Oasis Security blog post as a Jira ticket, summarized by [Groq](https://console.groq.com). All three values below are required; the digest exits with a message naming whichever is missing. Configure in `.env`:
 
 ```
+GROQ_API_KEY=gsk_...                    # required: AI summaries (free key at console.groq.com)
 DIGEST_USER_EMAIL=you@yourcompany.com   # an account that has signed in at least once
 DIGEST_PROJECT_KEY=SEC                  # target Jira project
-# GROQ_API_KEY=gsk_...                  # optional: AI summaries (free key at console.groq.com)
 ```
 
 Then run it:
@@ -120,7 +120,7 @@ To put it on a schedule, use whatever the host already has — cron, Task Schedu
 | `npm run setup` | Create `.env` from `.env.example` with fresh secrets (no-op if `.env` exists) |
 | `npm run dev` | Run API (`:3000`) + web dev server (`:5173`) with hot reload |
 | `npm run digest` | Run the blog digest once (standalone, independent of the server) |
-| `npm test` | Run the server test suite (68 tests) |
+| `npm test` | Run the server test suite (70 tests) |
 | `npm run typecheck` | TypeScript across all workspaces |
 | `npm run lint` | ESLint across the repo |
 | `npm run build` | Build the web app for production |
@@ -137,7 +137,7 @@ All configuration lives in `.env` (see [.env.example](.env.example) for comments
 | `ATLASSIAN_CLIENT_ID` / `ATLASSIAN_CLIENT_SECRET` | ✅ | Your OAuth app credentials — the server exits without them |
 | `ATLASSIAN_CALLBACK_URL` | defaulted | Must match the console exactly |
 | `PORT`, `APP_URL`, `DATABASE_PATH` | defaulted | Ports/paths |
-| `GROQ_API_KEY`, `DIGEST_MODEL` | optional | AI summaries for the digest (falls back to an extractive excerpt) |
+| `GROQ_API_KEY` | for the digest | AI summaries — the digest refuses to run without it (`DIGEST_MODEL` is defaulted) |
 | `DIGEST_USER_EMAIL`, `DIGEST_PROJECT_KEY` | for the digest | Who files digest tickets, and into which project |
 
 ## Project structure
