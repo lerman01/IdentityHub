@@ -16,9 +16,11 @@ export function useJiraProjects(enabled: boolean) {
   });
 }
 
+const recentTicketsKey = (projectKey: string | null) => ['tickets', 'recent', projectKey];
+
 export function useRecentTickets(projectKey: string | null) {
   return useQuery({
-    queryKey: ['tickets', 'recent', projectKey],
+    queryKey: recentTicketsKey(projectKey),
     queryFn: () =>
       api.get<TicketDto[]>(`/api/tickets/recent?projectKey=${encodeURIComponent(projectKey!)}`),
     enabled: Boolean(projectKey),
@@ -28,17 +30,36 @@ export function useRecentTickets(projectKey: string | null) {
   });
 }
 
+/**
+ * Jira's search index is eventually consistent: a just-created issue is often
+ * missing from JQL results for several seconds, so a single refetch after the
+ * POST usually comes back without it. Refetch on a widening backoff until the
+ * new key shows up, then stop. Runs detached from the mutation so the form
+ * isn't left pending while we wait.
+ */
+const REFETCH_DELAYS_MS = [0, 1_000, 2_500, 5_000, 8_000];
+
+async function refetchUntilVisible(
+  queryClient: ReturnType<typeof useQueryClient>,
+  projectKey: string,
+  issueKey: string,
+) {
+  const queryKey = recentTicketsKey(projectKey);
+  for (const delay of REFETCH_DELAYS_MS) {
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    // Only the mounted card is worth refetching; if it went away, so do we.
+    await queryClient.refetchQueries({ queryKey, type: 'active' });
+    const tickets = queryClient.getQueryData<TicketDto[]>(queryKey);
+    if (tickets?.some((ticket) => ticket.issueKey === issueKey)) return;
+  }
+}
+
 export function useCreateTicket() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateFindingInput) => api.post<CreatedTicketDto>('/api/tickets', input),
-    onSuccess: (_created, input) => {
-      const key = ['tickets', 'recent', input.projectKey];
-      void queryClient.invalidateQueries({ queryKey: key });
-      // Jira's search index is eventually consistent: a just-created issue can
-      // be missing from JQL results for a second or two. Refetch again shortly
-      // so the new ticket doesn't appear to be missing.
-      setTimeout(() => void queryClient.invalidateQueries({ queryKey: key }), 2500);
+    onSuccess: (created, input) => {
+      void refetchUntilVisible(queryClient, input.projectKey, created.issueKey);
     },
   });
 }
