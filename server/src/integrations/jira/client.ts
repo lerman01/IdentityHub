@@ -85,7 +85,7 @@ async function rawRequest(
   }
 }
 
-export async function jiraFetch<T>(
+async function jiraFetch<T>(
   accountId: string,
   path: string,
   init: { method?: string; body?: unknown } = {},
@@ -155,7 +155,7 @@ export function getProject(accountId: string, projectKey: string): Promise<Proje
   );
 }
 
-export interface CreatedIssue {
+interface CreatedIssue {
   id: string;
   key: string;
 }
@@ -178,7 +178,7 @@ interface JqlSearchResponse {
   }>;
 }
 
-export interface JiraIssueSummary {
+interface JiraIssueSummary {
   id: string;
   key: string;
   summary: string;

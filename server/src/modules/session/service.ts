@@ -7,7 +7,7 @@ import { accountRepo, type AccountRow } from '../../db/repositories/accountRepo.
  * the session says, how it is stored, and how routes are guarded with it.
  */
 
-export function toAccountDto(row: AccountRow): AccountDto {
+function toAccountDto(row: AccountRow): AccountDto {
   return {
     id: row.id,
     email: row.email,

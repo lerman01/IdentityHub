@@ -10,12 +10,12 @@ import { upstreamError } from '../../utils/errors.js';
  * than styling classes. Verified against the live site structure (2026-07).
  */
 
-export const BLOG_INDEX_URL = 'https://www.oasis.security/blog';
+const BLOG_INDEX_URL = 'https://www.oasis.security/blog';
 const FETCH_TIMEOUT_MS = 20_000;
 /** Plenty for a summary; keeps huge posts from blowing up prompt size. */
 const MAX_CONTENT_CHARS = 15_000;
 
-export interface BlogPost {
+interface BlogPost {
   title: string;
   url: string;
   /** Plain-text article body (may be empty if extraction found nothing). */
@@ -39,7 +39,7 @@ async function fetchHtml(url: string): Promise<string> {
 }
 
 /** URL of the newest post on the blog index (cards are listed newest-first). */
-export async function findLatestPostUrl(): Promise<string> {
+async function findLatestPostUrl(): Promise<string> {
   const html = await fetchHtml(BLOG_INDEX_URL);
   const $ = cheerio.load(html);
 
@@ -72,7 +72,7 @@ export async function findLatestPostUrl(): Promise<string> {
 }
 
 /** Fetches an article page and extracts its title + readable text. */
-export async function fetchPost(url: string): Promise<BlogPost> {
+async function fetchPost(url: string): Promise<BlogPost> {
   const html = await fetchHtml(url);
   const $ = cheerio.load(html);
 

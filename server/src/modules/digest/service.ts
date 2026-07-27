@@ -21,7 +21,7 @@ import { summarizePost } from './summarizer.js';
  * - AI summary with extractive fallback: works with or without an API key.
  */
 
-export interface DigestResult {
+interface DigestResult {
   issueKey: string;
   url: string;
   postTitle: string;

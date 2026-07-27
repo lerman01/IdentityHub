@@ -7,7 +7,6 @@ vi.mock('../src/integrations/jira/client.js', () => ({
   createIssue: vi.fn(),
   searchProjects: vi.fn(),
   searchAppIssues: vi.fn(),
-  jiraFetch: vi.fn(),
 }));
 
 const { ticketService } = await import('../src/modules/tickets/service.js');

@@ -10,7 +10,7 @@ interface AdfNode {
   content?: AdfNode[];
 }
 
-export interface AdfDoc {
+interface AdfDoc {
   type: 'doc';
   version: 1;
   content: AdfNode[];

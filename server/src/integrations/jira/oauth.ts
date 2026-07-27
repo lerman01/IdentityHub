@@ -30,7 +30,7 @@ export interface OAuthTokens {
   expiresAt: number;
 }
 
-export interface AccessibleResource {
+interface AccessibleResource {
   id: string;
   url: string;
   name: string;
@@ -144,7 +144,7 @@ export async function fetchAccessibleResources(accessToken: string): Promise<Acc
   return (await res.json()) as AccessibleResource[];
 }
 
-export interface JiraMyself {
+interface JiraMyself {
   accountId: string;
   emailAddress?: string;
   displayName?: string;

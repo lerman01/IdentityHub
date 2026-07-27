@@ -21,7 +21,7 @@ const SYSTEM_PROMPT =
   'You summarize security blog posts for engineers who will read the summary inside a Jira ' +
   'ticket. Be concrete and factual. Never invent details that are not in the post.';
 
-export interface Summary {
+interface Summary {
   text: string;
   method: 'ai' | 'extractive';
 }

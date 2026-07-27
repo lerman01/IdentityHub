@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionDto } from '@identityhub/shared';
 import { api } from '@/lib/api';
 
-export const ME_KEY = ['auth', 'me'] as const;
+const ME_KEY = ['auth', 'me'] as const;
 
 /** The signed-in account, plus whether the server can do Atlassian OAuth at all. */
 export function useSession() {

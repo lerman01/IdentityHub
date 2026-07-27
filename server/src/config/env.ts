@@ -73,7 +73,6 @@ const isProd = raw.NODE_ENV === 'production';
 export const env = {
   ...raw,
   isProd,
-  isTest: raw.NODE_ENV === 'test',
   /** Browser origin of the UI — Vite in dev, this server in production. */
   APP_URL: raw.APP_URL ?? (isProd ? `http://localhost:${raw.PORT}` : 'http://localhost:5173'),
   /** Origin of this API server (OAuth callbacks land here in every mode). */
@@ -84,5 +83,3 @@ export const env = {
   /** Decoded AES-256 key for encrypting Jira tokens at rest. */
   encryptionKey: Buffer.from(raw.ENCRYPTION_KEY, 'base64'),
 };
-
-export type Env = typeof env;
