@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-import { AppError } from '../lib/errors.js';
-import { apiKeyService } from '../modules/apiKeys/apiKeyService.js';
+import { AppError } from '../../utils/errors.js';
+import { apiKeyService } from './service.js';
 
 /**
  * Authentication for the machine-facing public API. Accepts either header:

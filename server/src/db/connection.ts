@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { env } from '../config/env.js';
-import { logger } from '../lib/logger.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Single shared SQLite connection (better-sqlite3 is synchronous, so one

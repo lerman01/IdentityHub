@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { upstreamError } from '../lib/errors.js';
+import { upstreamError } from '../../utils/errors.js';
 
 /**
  * Scrapes the latest post from the Oasis Security blog.
@@ -77,9 +77,7 @@ export async function fetchPost(url: string): Promise<BlogPost> {
   const $ = cheerio.load(html);
 
   const title =
-    $('meta[property="og:title"]').attr('content')?.trim() ||
-    $('h1').first().text().trim() ||
-    url;
+    $('meta[property="og:title"]').attr('content')?.trim() || $('h1').first().text().trim() || url;
 
   // Most-specific first: Webflow rich-text body, then semantic containers.
   const containers = ['.w-richtext', 'article', 'main'];

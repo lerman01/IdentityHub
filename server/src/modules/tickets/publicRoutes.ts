@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createFindingSchema, projectKeySchema } from '@identityhub/shared';
-import { requireApiKey } from '../middleware/requireApiKey.js';
-import { ticketService } from '../modules/tickets/ticketService.js';
+import { requireApiKey } from '../apiKeys/requireApiKey.js';
+import { ticketService } from './service.js';
 
 /**
  * Public REST API for external systems (scanners, CI/CD).

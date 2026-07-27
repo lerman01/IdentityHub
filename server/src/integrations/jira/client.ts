@@ -1,6 +1,6 @@
-import { AppError, upstreamError } from '../../lib/errors.js';
+import { AppError, upstreamError } from '../../utils/errors.js';
 import { APP_LABEL } from './labels.js';
-import { getCloudContext, type CloudContext } from './jiraConnectionService.js';
+import { getCloudContext, type CloudContext } from './tokens.js';
 
 /**
  * Authenticated Jira Cloud API client for a connected user. All requests are

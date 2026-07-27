@@ -1,14 +1,10 @@
 import { Router } from 'express';
-import { getSession } from '../modules/jira/jiraConnectionService.js';
-import { SESSION_COOKIE_NAME } from './index.js';
+import { SESSION_COOKIE_NAME } from './middleware.js';
+import { getSession } from './service.js';
 
 /**
- * The session's own endpoints, mounted at /api/auth.
- *
- * Signing *in* is not here: authorizing Atlassian is what creates the session,
- * so it lives in the Jira module (docs/DECISIONS.md #2). What remains is
- * reading the current session and ending it — which is why this sits beside
- * the store and the middleware rather than in a module of its own.
+ * The session's own endpoints, mounted at /api/session: reading the current
+ * session and ending it. Signing *in* is /api/auth (modules/auth).
  */
 export const sessionRouter = Router();
 

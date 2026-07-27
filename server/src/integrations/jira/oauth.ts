@@ -1,9 +1,10 @@
 import { env } from '../../config/env.js';
-import { AppError, upstreamError } from '../../lib/errors.js';
+import { AppError, upstreamError } from '../../utils/errors.js';
 
 /**
  * Raw Atlassian OAuth 2.0 (3LO) protocol client — no database access, no
- * session knowledge. jiraConnectionService orchestrates it.
+ * session knowledge. modules/auth/service.ts drives the sign-in flow;
+ * tokens.ts drives the refresh.
  *
  * Flow reference: https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/
  */

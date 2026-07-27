@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreatedTicketDto, CreateFindingInput, ProjectDto, TicketDto } from '@identityhub/shared';
+import type {
+  CreatedTicketDto,
+  CreateFindingInput,
+  ProjectDto,
+  TicketDto,
+} from '@identityhub/shared';
 import { api } from '@/lib/api';
 
 export function useJiraProjects(enabled: boolean) {
   return useQuery({
     queryKey: ['jira', 'projects'],
-    queryFn: () => api.get<ProjectDto[]>('/api/jira/projects'),
+    queryFn: () => api.get<ProjectDto[]>('/api/tickets/projects'),
     enabled,
     staleTime: 5 * 60_000,
   });

@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import type { ApiKeyDto, CreatedApiKeyDto } from '@identityhub/shared';
 import { apiKeyRepo, type ApiKeyRow } from '../../db/repositories/apiKeyRepo.js';
-import { sha256 } from '../../lib/crypto.js';
-import { conflict, notFound } from '../../lib/errors.js';
+import { sha256 } from '../../utils/crypto.js';
+import { conflict, notFound } from '../../utils/errors.js';
 
 /**
  * API keys follow the GitHub/Stripe model:

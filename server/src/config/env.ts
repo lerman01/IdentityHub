@@ -79,7 +79,7 @@ export const env = {
   /** Origin of this API server (OAuth callbacks land here in every mode). */
   SERVER_URL: `http://localhost:${raw.PORT}`,
   ATLASSIAN_CALLBACK_URL:
-    raw.ATLASSIAN_CALLBACK_URL ?? `http://localhost:${raw.PORT}/api/jira/oauth/callback`,
+    raw.ATLASSIAN_CALLBACK_URL ?? `http://localhost:${raw.PORT}/api/auth/callback`,
   DATABASE_PATH: path.resolve(REPO_ROOT, raw.DATABASE_PATH),
   /** Decoded AES-256 key for encrypting Jira tokens at rest. */
   encryptionKey: Buffer.from(raw.ENCRYPTION_KEY, 'base64'),

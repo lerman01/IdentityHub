@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AppError } from '../src/lib/errors.js';
-import { apiKeyService } from '../src/modules/apiKeys/apiKeyService.js';
+import { AppError } from '../src/utils/errors.js';
+import { apiKeyService } from '../src/modules/apiKeys/service.js';
 import { createTestAccount } from './helpers.js';
 
 describe('apiKeyService', () => {

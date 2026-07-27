@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { textToAdf } from '../src/modules/jira/adf.js';
+import { textToAdf } from '../src/integrations/jira/adf.js';
 
 describe('textToAdf', () => {
   it('wraps plain text in a valid ADF document', () => {

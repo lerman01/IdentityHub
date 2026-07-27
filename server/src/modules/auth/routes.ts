@@ -1,12 +1,22 @@
 import { type Request, Router } from 'express';
 import { env } from '../../config/env.js';
-import { AppError } from '../../lib/errors.js';
-import { logger } from '../../lib/logger.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
-import { searchProjects } from './jiraClient.js';
-import { type CallbackResult, handleCallback, startOAuth } from './jiraConnectionService.js';
+import { AppError } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
+import { type CallbackResult, handleCallback, startOAuth } from './service.js';
 
-export const jiraRouter = Router();
+/**
+ * "Sign in with Atlassian", mounted at /api/auth.
+ *
+ * Authorizing Atlassian is what creates the account, so sign-in and Jira
+ * access are one flow rather than three (docs/DECISIONS.md #2). What the
+ * session *is* once it exists — reading it, ending it, guarding routes with
+ * it — belongs to modules/session.
+ *
+ * NOTE: /api/auth/callback must match ATLASSIAN_CALLBACK_URL and the callback
+ * registered in the Atlassian developer console. Changing it here means
+ * changing it there too, or sign-in fails with a redirect_uri mismatch.
+ */
+export const authRouter = Router();
 
 /** App URL with a status flag the UI turns into a toast. */
 function appRedirect(flag: string, reason?: string): string {
@@ -22,7 +32,7 @@ function appRedirect(flag: string, reason?: string): string {
  *
  * This is session-fixation protection, and it matters specifically because we
  * create a session for *anonymous* visitors to hold the OAuth `state` nonce:
- * an attacker could obtain a validly-signed session id from /oauth/start,
+ * an attacker could obtain a validly-signed session id from /api/auth/start,
  * plant it in a victim's browser, and inherit the session once the victim
  * signed in. Regenerating on privilege elevation breaks that.
  *
@@ -40,17 +50,16 @@ function elevateSession(req: Request, accountId: string): Promise<void> {
   });
 }
 
-// ── Sign in with Atlassian ────────────────────────────────────────────────────
 // These two are browser NAVIGATIONS, not fetch calls: failures redirect back
 // into the app rather than rendering JSON at a lost user.
 
-jiraRouter.get('/oauth/start', (req, res, next) => {
+authRouter.get('/start', (req, res, next) => {
   const authorizeUrl = startOAuth(req.session);
   // Persist the state nonce before leaving for Atlassian.
   req.session.save((err) => (err ? next(err) : res.redirect(authorizeUrl)));
 });
 
-jiraRouter.get('/oauth/callback', async (req, res) => {
+authRouter.get('/callback', async (req, res) => {
   const q = req.query;
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 
@@ -83,12 +92,6 @@ jiraRouter.get('/oauth/callback', async (req, res) => {
   req.session.save(() => res.redirect(target));
 });
 
-// ── JSON endpoints for the app ────────────────────────────────────────────────
-
 // There are no site endpoints: with resource-level grants the token reaches
 // exactly one site, so switching means re-running consent — the client signs
-// out and restarts /oauth/start (docs/DECISIONS.md #2c).
-
-jiraRouter.get('/projects', requireAuth, async (req, res) => {
-  res.json(await searchProjects(req.session.accountId!));
-});
+// out and restarts /api/auth/start (docs/DECISIONS.md #2c).

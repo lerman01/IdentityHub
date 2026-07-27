@@ -8,7 +8,7 @@ export const ME_KEY = ['auth', 'me'] as const;
 export function useSession() {
   return useQuery({
     queryKey: ME_KEY,
-    queryFn: () => api.get<SessionDto>('/api/auth/me'),
+    queryFn: () => api.get<SessionDto>('/api/session/me'),
     staleTime: 5 * 60_000,
   });
 }
@@ -16,7 +16,7 @@ export function useSession() {
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<void>('/api/auth/logout'),
+    mutationFn: () => api.post<void>('/api/session/logout'),
     // Wipe the entire client cache: nothing from one account's session may
     // leak into the next (client-side mirror of the server's tenant isolation).
     onSuccess: () => queryClient.clear(),
@@ -25,5 +25,5 @@ export function useLogout() {
 
 /** Full-page navigation into the OAuth flow (it's a redirect dance, not a fetch). */
 export function signInWithAtlassian() {
-  window.location.href = '/api/jira/oauth/start';
+  window.location.href = '/api/auth/start';
 }

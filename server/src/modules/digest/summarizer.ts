@@ -1,5 +1,5 @@
-import { env } from '../config/env.js';
-import { logger } from '../lib/logger.js';
+import { env } from '../../config/env.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Summarizes a blog post for the digest ticket.

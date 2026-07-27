@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionData } from 'express-session';
 import { db } from '../src/db/connection.js';
-import { SqliteSessionStore } from '../src/session/sqliteStore.js';
+import { SqliteSessionStore } from '../src/modules/session/store.js';
 
 const sessionData = (userId: string, maxAgeMs: number): SessionData =>
   ({
@@ -38,9 +38,9 @@ describe('SqliteSessionStore', () => {
   it('touch extends the expiry', async () => {
     store.set('sid-touch', sessionData('user-4', 5_000));
     store.touch('sid-touch', sessionData('user-4', 120_000));
-    const row = db
-      .prepare('SELECT expires_at FROM sessions WHERE sid = ?')
-      .get('sid-touch') as { expires_at: number };
+    const row = db.prepare('SELECT expires_at FROM sessions WHERE sid = ?').get('sid-touch') as {
+      expires_at: number;
+    };
     expect(row.expires_at).toBeGreaterThan(Date.now() + 60_000);
   });
 });

@@ -11,9 +11,9 @@ flowchart LR
 
     subgraph Server["Express 5 API (server/)"]
         R[Routes<br/>thin controllers + zod parsing]
-        SV[Services<br/>session · jira · tickets · apiKeys]
+        SV[Services<br/>auth · session · tickets · apiKeys]
         RP[Repositories<br/>parameterized SQL]
-        JC[jiraClient<br/>authed fetch + retry]
+        JC[integrations/jira<br/>authed fetch + retry]
     end
 
     DB[(SQLite)]
@@ -41,10 +41,27 @@ The digest is a standalone process, not a route: nothing in the API imports it (
 ```
 routes (HTTP: parse input with shared zod schemas, map to services, shape responses)
   └─ services (business logic, error mapping to AppError)
-       ├─ repositories (hand-written parameterized SQL against SQLite)
-       └─ jiraClient / atlassianOAuth (outbound HTTP to Atlassian)
+       ├─ db/repositories (parameterized SQL — statements live in db/sql.ts)
+       └─ integrations/jira (outbound HTTP to Atlassian: client, oauth, tokens)
 ```
 
+- `src/modules/<feature>/` owns everything that feature needs: its routes, its service, and
+  its own auth guard. `src/integrations/` holds outbound third-party clients. Modules may
+  import integrations; integrations never import modules.
+- **One URL prefix per module, and the prefix is the module name.** The whole surface:
+
+  | Prefix | Module | Auth |
+  |---|---|---|
+  | `/api/auth` | `auth` — sign in with Atlassian (`/start`, `/callback`) | none (this is what creates it) |
+  | `/api/session` | `session` — `/me`, `/logout` | session cookie |
+  | `/api/tickets` | `tickets` — create, `/recent`, `/projects` | session cookie |
+  | `/api/api-keys` | `apiKeys` — create, list, revoke | session cookie |
+  | `/api/v1` | `tickets` (`publicRoutes.ts`) — `/findings` | API key |
+
+  `auth` creates the session; `session` owns it afterwards (reading it, ending it, and the
+  `requireAuth` guard every cookie-authed route above uses).
+- `/api/auth/callback` must equal `ATLASSIAN_CALLBACK_URL` **and** the callback registered
+  in the Atlassian developer console. Moving it means updating all three.
 - The web app never talks to Jira — only to our API. Jira credentials never reach the browser.
 - Routes never touch the database directly; services never touch `req`/`res`.
 - `shared/` holds the Zod schemas and DTO types used by server **and** web — validation logic exists once ([DECISIONS.md #13](DECISIONS.md)).
@@ -59,12 +76,12 @@ sequenceDiagram
     participant AT as auth.atlassian.com
     participant JA as api.atlassian.com
 
-    U->>A: GET /api/jira/oauth/start (no session needed)
+    U->>A: GET /api/auth/start (no session needed)
     A->>A: state = random, bound to session (single-use)
     A-->>U: 302 to consent screen (scopes + state)
     U->>AT: choose a Jira site + approve access
     AT-->>U: 302 callback?code&state
-    U->>A: GET /api/jira/oauth/callback
+    U->>A: GET /api/auth/callback
     A->>A: verify + consume state (CSRF)
     A->>AT: exchange code (client id + secret)
     AT-->>A: access token (~1h) + rotating refresh token

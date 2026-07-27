@@ -7,11 +7,11 @@ import {
   type TicketSource,
 } from '@identityhub/shared';
 import { accountRepo } from '../../db/repositories/accountRepo.js';
-import { textToAdf } from '../jira/adf.js';
-import { AppError, conflict, notFound } from '../../lib/errors.js';
-import { logger } from '../../lib/logger.js';
-import { createIssue, getProject, searchAppIssues } from '../jira/jiraClient.js';
-import { buildLabels, parseSource } from '../jira/labels.js';
+import { textToAdf } from '../../integrations/jira/adf.js';
+import { createIssue, getProject, searchAppIssues } from '../../integrations/jira/client.js';
+import { buildLabels, parseSource } from '../../integrations/jira/labels.js';
+import { AppError, conflict, notFound } from '../../utils/errors.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * The one path every ticket takes, whatever its origin (web form, public API,

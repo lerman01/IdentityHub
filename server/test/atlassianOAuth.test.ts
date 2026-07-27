@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAuthorizeUrl, JIRA_SCOPES } from '../src/modules/jira/atlassianOAuth.js';
+import { buildAuthorizeUrl, JIRA_SCOPES } from '../src/integrations/jira/oauth.js';
 
 /**
  * The authorize URL is the whole sign-in contract with Atlassian, and it is
@@ -33,6 +33,6 @@ describe('buildAuthorizeUrl', () => {
   });
 
   it('sends the callback URL that must match the Atlassian console exactly', () => {
-    expect(params.get('redirect_uri')).toBe('http://localhost:3000/api/jira/oauth/callback');
+    expect(params.get('redirect_uri')).toBe('http://localhost:3000/api/auth/callback');
   });
 });

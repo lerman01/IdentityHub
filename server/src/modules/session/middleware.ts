@@ -1,7 +1,7 @@
 import session from 'express-session';
-import { db } from '../db/connection.js';
-import { env } from '../config/env.js';
-import { SqliteSessionStore } from './sqliteStore.js';
+import { db } from '../../db/connection.js';
+import { env } from '../../config/env.js';
+import { SqliteSessionStore } from './store.js';
 
 export const SESSION_COOKIE_NAME = 'identityhub.sid';
 

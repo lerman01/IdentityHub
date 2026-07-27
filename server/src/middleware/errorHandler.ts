@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import type { ApiErrorBody } from '@identityhub/shared';
-import { AppError } from '../lib/errors.js';
-import { logger } from '../lib/logger.js';
+import { AppError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 function send(res: Response, status: number, code: string, message: string, details?: unknown) {
   const body: ApiErrorBody = { error: { code, message, ...(details ? { details } : {}) } };

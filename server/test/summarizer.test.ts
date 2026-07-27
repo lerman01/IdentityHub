@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { summarizePost } from '../src/jobs/summarizer.js';
+import { summarizePost } from '../src/modules/digest/summarizer.js';
 
 /**
  * The test env has no GROQ_API_KEY (see setup.ts), so these exercise the

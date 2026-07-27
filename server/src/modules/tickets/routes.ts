@@ -1,13 +1,23 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { createFindingSchema, projectKeySchema } from '@identityhub/shared';
-import { requireAuth } from '../../middleware/requireAuth.js';
-import { ticketService } from './ticketService.js';
+import { searchProjects } from '../../integrations/jira/client.js';
+import { requireAuth } from '../session/requireAuth.js';
+import { ticketService } from './service.js';
 
-/** Session-authed ticket endpoints for the web app. */
+/** Session-authed ticket endpoints for the web app, mounted at /api/tickets. */
 export const ticketRouter = Router();
 
 ticketRouter.use(requireAuth);
+
+/**
+ * The ticket form's project picker. It exists only to supply the `projectKey`
+ * the endpoints below take, so it lives on the ticket router rather than
+ * anywhere Jira-shaped.
+ */
+ticketRouter.get('/projects', async (req, res) => {
+  res.json(await searchProjects(req.session.accountId!));
+});
 
 ticketRouter.post('/', async (req, res) => {
   const input = createFindingSchema.parse(req.body);

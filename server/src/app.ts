@@ -5,12 +5,12 @@ import helmet from 'helmet';
 import { env, REPO_ROOT } from './config/env.js';
 import { apiNotFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { originCheck } from './middleware/originCheck.js';
-import { apiKeyRouter } from './modules/apiKeys/apiKeyRoutes.js';
-import { jiraRouter } from './modules/jira/jiraRoutes.js';
-import { ticketRouter } from './modules/tickets/ticketRoutes.js';
-import { publicApiRouter } from './publicApi/v1Routes.js';
-import { sessionMiddleware } from './session/index.js';
-import { sessionRouter } from './session/routes.js';
+import { apiKeyRouter } from './modules/apiKeys/routes.js';
+import { authRouter } from './modules/auth/routes.js';
+import { sessionMiddleware } from './modules/session/middleware.js';
+import { sessionRouter } from './modules/session/routes.js';
+import { publicApiRouter } from './modules/tickets/publicRoutes.js';
+import { ticketRouter } from './modules/tickets/routes.js';
 
 /**
  * Assembles the Express app. Kept separate from index.ts (which listens) so
@@ -29,11 +29,11 @@ export function createApp() {
     res.json({ status: 'ok', uptime: Math.round(process.uptime()) });
   });
 
-  // Browser-facing routes (session cookie + origin check).
-  // Sign-in itself lives under /api/jira/oauth — authorizing Atlassian is what
-  // creates the account and the session (docs/DECISIONS.md #2).
-  app.use('/api/auth', sessionRouter);
-  app.use('/api/jira', jiraRouter);
+  // Browser-facing routes (session cookie + origin check). One prefix per
+  // module, and the prefix IS the module — nothing is mounted anywhere
+  // surprising.
+  app.use('/api/auth', authRouter); //     signing in with Atlassian
+  app.use('/api/session', sessionRouter); // the session that sign-in created
   app.use('/api/tickets', ticketRouter);
   app.use('/api/api-keys', apiKeyRouter);
 

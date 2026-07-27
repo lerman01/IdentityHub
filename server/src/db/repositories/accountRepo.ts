@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '../connection.js';
+import { accountSql } from '../sql.js';
 
 /**
  * Accounts are both the tenant and the Jira connection — see schema.sql.
  * Every other table scopes by `account_id`, and every query here is
- * parameterized.
+ * parameterized (the statements themselves live in ../sql.ts).
  */
 
 export interface AccountRow {
@@ -23,45 +24,14 @@ export interface AccountRow {
   updated_at: string;
 }
 
-const byIdStmt = db.prepare('SELECT * FROM accounts WHERE id = ?');
-const byAtlassianIdStmt = db.prepare('SELECT * FROM accounts WHERE atlassian_account_id = ?');
-const byEmailStmt = db.prepare('SELECT * FROM accounts WHERE email = ? COLLATE NOCASE');
-
-/**
- * Called on every sign-in: creates the account the first time an Atlassian
- * identity appears, and refreshes its profile, site and tokens on every later
- * login. The site is part of the same write because the grant is site-scoped —
- * re-consenting for a different site is how an account moves.
- */
-const upsertStmt = db.prepare(`
-  INSERT INTO accounts
-    (id, atlassian_account_id, email, display_name, cloud_id, site_url, site_name,
-     access_token_enc, refresh_token_enc, access_token_expires_at)
-  VALUES
-    (@id, @atlassianAccountId, @email, @displayName, @cloudId, @siteUrl, @siteName,
-     @accessTokenEnc, @refreshTokenEnc, @accessTokenExpiresAt)
-  ON CONFLICT (atlassian_account_id) DO UPDATE SET
-    email = excluded.email,
-    display_name = excluded.display_name,
-    cloud_id = excluded.cloud_id,
-    site_url = excluded.site_url,
-    site_name = excluded.site_name,
-    access_token_enc = excluded.access_token_enc,
-    refresh_token_enc = excluded.refresh_token_enc,
-    access_token_expires_at = excluded.access_token_expires_at,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-`);
-
-const updateTokensStmt = db.prepare(`
-  UPDATE accounts SET
-    access_token_enc = @accessTokenEnc,
-    refresh_token_enc = @refreshTokenEnc,
-    access_token_expires_at = @accessTokenExpiresAt,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-  WHERE id = @id
-`);
+const byIdStmt = db.prepare(accountSql.byId);
+const byAtlassianIdStmt = db.prepare(accountSql.byAtlassianId);
+const byEmailStmt = db.prepare(accountSql.byEmail);
+const upsertStmt = db.prepare(accountSql.upsertFromAtlassian);
+const updateTokensStmt = db.prepare(accountSql.updateTokens);
 
 export const accountRepo = {
+  /** Called on every sign-in — creates the account, or refreshes profile, site and tokens. */
   upsertFromAtlassian(input: {
     atlassianAccountId: string;
     email: string | null;

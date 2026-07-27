@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth } from '../../middleware/requireAuth.js';
-import { apiKeyService } from './apiKeyService.js';
+import { requireAuth } from '../session/requireAuth.js';
+import { apiKeyService } from './service.js';
 
 /** Session-authed key management for the web app. */
 export const apiKeyRouter = Router();

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session, SessionData } from 'express-session';
 
-vi.mock('../src/modules/jira/atlassianOAuth.js', () => ({
+vi.mock('../src/integrations/jira/oauth.js', () => ({
   buildAuthorizeUrl: vi.fn(() => 'https://auth.atlassian.com/authorize?state=x'),
   exchangeCode: vi.fn(),
   fetchAccessibleResources: vi.fn(),
@@ -9,12 +9,11 @@ vi.mock('../src/modules/jira/atlassianOAuth.js', () => ({
   refreshTokens: vi.fn(),
 }));
 
-const { getCloudContext, handleCallback, startOAuth } = await import(
-  '../src/modules/jira/jiraConnectionService.js'
-);
+const { handleCallback, startOAuth } = await import('../src/modules/auth/service.js');
+const { getCloudContext } = await import('../src/integrations/jira/tokens.js');
 const { accountRepo } = await import('../src/db/repositories/accountRepo.js');
-const atlassian = await import('../src/modules/jira/atlassianOAuth.js');
-const { AppError } = await import('../src/lib/errors.js');
+const atlassian = await import('../src/integrations/jira/oauth.js');
+const { AppError } = await import('../src/utils/errors.js');
 const { createTestAccount } = await import('./helpers.js');
 
 type FakeSession = Session & Partial<SessionData>;

@@ -50,7 +50,7 @@ Sign-in *is* the Jira connection: users click **Sign in with Atlassian**, approv
    - `read:jira-user` — *View user profiles* (show who connected)
 4. **Authorization** (left menu) → OAuth 2.0 (3LO) → **Add**, and set the callback URL to exactly:
    ```
-   http://localhost:3000/api/jira/oauth/callback
+   http://localhost:3000/api/auth/callback
    ```
 5. **Settings** (left menu) → copy the **Client ID** and **Secret** into your `.env`:
    ```
@@ -144,14 +144,19 @@ All configuration lives in `.env` (see [.env.example](.env.example) for comments
 
 ```
 shared/   Zod schemas + DTO types used by BOTH server and web (one validation source)
-server/   Express 5 API — routes → services → repositories/jiraClient, SQLite storage
-  src/session/     session middleware, SQLite store, /api/auth routes
-  src/modules/     jira (OAuth, client, connection) · tickets · apiKeys
-  src/publicApi/   /api/v1 for external systems (API-key auth)
-  src/jobs/        blog digest (scraper, summarizer, runner)
-  src/db/          connection, schema.sql, repositories
-  src/middleware/  auth guards, origin check, error handler
-  test/            vitest + supertest suite
+server/   Express 5 API — routes → services → repositories/integrations, SQLite storage
+  src/modules/       one folder per feature — one URL prefix each, named the same
+    auth/            /api/auth      sign in with Atlassian (start, callback)
+    session/         /api/session   me, logout · store · middleware · requireAuth
+    tickets/         /api/tickets   create, recent, projects — and /api/v1 (API key)
+    apiKeys/         /api/api-keys  create, list, revoke · requireApiKey
+    digest/          no routes: standalone blog digest (npm run digest)
+  src/integrations/  outbound third-party clients — jira: client, oauth, tokens, adf, labels
+  src/db/            connection, schema.sql, sql.ts (all queries), repositories
+  src/utils/         crypto, errors, logger
+  src/middleware/    app-wide only: error handler, origin check
+  src/app.ts         the URL map — mounts each module's router
+  test/              vitest + supertest suite
 web/      React 19 SPA — pages → hooks (TanStack Query) → typed api client
 ```
 

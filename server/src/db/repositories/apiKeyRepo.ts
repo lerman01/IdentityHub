@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '../connection.js';
+import { apiKeySql } from '../sql.js';
 
 export interface ApiKeyRow {
   id: string;
@@ -12,28 +13,13 @@ export interface ApiKeyRow {
   revoked_at: string | null;
 }
 
-const insertStmt = db.prepare(`
-  INSERT INTO api_keys (id, account_id, name, key_hash, key_hint)
-  VALUES (@id, @accountId, @name, @keyHash, @keyHint)
-`);
-const byAccountStmt = db.prepare(
-  'SELECT * FROM api_keys WHERE account_id = ? ORDER BY created_at DESC, rowid DESC',
-);
-const byIdStmt = db.prepare('SELECT * FROM api_keys WHERE id = ?');
-// NOCASE matches the collation of idx_api_keys_account_name, so this lookup
-// answers exactly the question the unique index enforces.
-const nameTakenStmt = db.prepare(
-  'SELECT 1 FROM api_keys WHERE account_id = ? AND name = ? COLLATE NOCASE LIMIT 1',
-);
-const byHashStmt = db.prepare('SELECT * FROM api_keys WHERE key_hash = ?');
-// account_id in the WHERE clause is the tenancy boundary: users can only revoke their own keys.
-const revokeStmt = db.prepare(`
-  UPDATE api_keys SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-  WHERE id = ? AND account_id = ? AND revoked_at IS NULL
-`);
-const touchStmt = db.prepare(
-  "UPDATE api_keys SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-);
+const insertStmt = db.prepare(apiKeySql.insert);
+const byAccountStmt = db.prepare(apiKeySql.byAccount);
+const byIdStmt = db.prepare(apiKeySql.byId);
+const nameTakenStmt = db.prepare(apiKeySql.nameTaken);
+const byHashStmt = db.prepare(apiKeySql.byHash);
+const revokeStmt = db.prepare(apiKeySql.revoke);
+const touchStmt = db.prepare(apiKeySql.touchLastUsed);
 
 export const apiKeyRepo = {
   insert(row: { accountId: string; name: string; keyHash: string; keyHint: string }): ApiKeyRow {

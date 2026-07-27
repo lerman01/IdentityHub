@@ -1,5 +1,6 @@
 import { Store, type SessionData } from 'express-session';
 import type { Database } from 'better-sqlite3';
+import { sessionSql } from '../../db/sql.js';
 
 /**
  * express-session store over better-sqlite3 (~60 lines instead of a
@@ -19,14 +20,11 @@ export class SqliteSessionStore extends Store {
     private readonly defaultTtlMs = 8 * 60 * 60 * 1000,
   ) {
     super();
-    this.getStmt = db.prepare('SELECT data FROM sessions WHERE sid = ? AND expires_at > ?');
-    this.setStmt = db.prepare(
-      'INSERT INTO sessions (sid, data, expires_at) VALUES (?, ?, ?) ' +
-        'ON CONFLICT (sid) DO UPDATE SET data = excluded.data, expires_at = excluded.expires_at',
-    );
-    this.destroyStmt = db.prepare('DELETE FROM sessions WHERE sid = ?');
-    this.touchStmt = db.prepare('UPDATE sessions SET expires_at = ? WHERE sid = ?');
-    this.cleanupStmt = db.prepare('DELETE FROM sessions WHERE expires_at <= ?');
+    this.getStmt = db.prepare(sessionSql.get);
+    this.setStmt = db.prepare(sessionSql.set);
+    this.destroyStmt = db.prepare(sessionSql.destroy);
+    this.touchStmt = db.prepare(sessionSql.touch);
+    this.cleanupStmt = db.prepare(sessionSql.cleanup);
 
     // Lazy expiry (queries filter on expires_at) plus periodic garbage collection.
     setInterval(() => this.cleanupStmt.run(Date.now()), 10 * 60 * 1000).unref();

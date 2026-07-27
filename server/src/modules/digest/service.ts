@@ -1,8 +1,8 @@
 import { createFindingSchema } from '@identityhub/shared';
-import { env } from '../config/env.js';
-import { accountRepo } from '../db/repositories/accountRepo.js';
-import { logger } from '../lib/logger.js';
-import { ticketService } from '../modules/tickets/ticketService.js';
+import { env } from '../../config/env.js';
+import { accountRepo } from '../../db/repositories/accountRepo.js';
+import { logger } from '../../utils/logger.js';
+import { ticketService } from '../tickets/service.js';
 import { fetchLatestPost } from './blogScraper.js';
 import { summarizePost } from './summarizer.js';
 

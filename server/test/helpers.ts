@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { accountRepo, type AccountRow } from '../src/db/repositories/accountRepo.js';
-import { encryptSecret } from '../src/lib/crypto.js';
+import { encryptSecret } from '../src/utils/crypto.js';
 
 /**
  * An account as it exists right after signing in with Atlassian: identity and

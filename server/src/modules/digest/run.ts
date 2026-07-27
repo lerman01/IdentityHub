@@ -1,5 +1,5 @@
-import { AppError } from '../lib/errors.js';
-import { DigestConfigError, runBlogDigest } from './blogDigest.js';
+import { AppError } from '../../utils/errors.js';
+import { DigestConfigError, runBlogDigest } from './service.js';
 
 /**
  * Entry point for the bonus feature: `npm run digest`.

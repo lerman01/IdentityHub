@@ -2,7 +2,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestAccount } from './helpers.js';
 
-vi.mock('../src/modules/jira/jiraClient.js', () => ({
+vi.mock('../src/integrations/jira/client.js', () => ({
   getProject: vi.fn(),
   createIssue: vi.fn(),
   searchProjects: vi.fn(),
@@ -11,8 +11,8 @@ vi.mock('../src/modules/jira/jiraClient.js', () => ({
 }));
 
 const { createApp } = await import('../src/app.js');
-const { apiKeyService } = await import('../src/modules/apiKeys/apiKeyService.js');
-const jiraClient = await import('../src/modules/jira/jiraClient.js');
+const { apiKeyService } = await import('../src/modules/apiKeys/service.js');
+const jiraClient = await import('../src/integrations/jira/client.js');
 
 const app = createApp();
 
@@ -127,9 +127,7 @@ describe('GET /api/v1/findings', () => {
 
   it('validates the query', async () => {
     const { key } = makeUserWithKey();
-    const res = await request(app)
-      .get('/api/v1/findings')
-      .set('Authorization', `Bearer ${key}`);
+    const res = await request(app).get('/api/v1/findings').set('Authorization', `Bearer ${key}`);
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });

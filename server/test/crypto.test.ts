@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decryptSecret, encryptSecret, sha256 } from '../src/lib/crypto.js';
+import { decryptSecret, encryptSecret, sha256 } from '../src/utils/crypto.js';
 
 // Note: there is no password hashing to test — sign-in is Atlassian OAuth
 // only, so the app never sees or stores a password (docs/DECISIONS.md #2).

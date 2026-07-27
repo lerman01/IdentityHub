@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppError } from '../src/lib/errors.js';
+import { AppError } from '../src/utils/errors.js';
 import { createTestAccount } from './helpers.js';
 
-vi.mock('../src/modules/jira/jiraClient.js', () => ({
+vi.mock('../src/integrations/jira/client.js', () => ({
   getProject: vi.fn(),
   createIssue: vi.fn(),
   searchProjects: vi.fn(),
@@ -10,8 +10,8 @@ vi.mock('../src/modules/jira/jiraClient.js', () => ({
   jiraFetch: vi.fn(),
 }));
 
-const { ticketService } = await import('../src/modules/tickets/ticketService.js');
-const jiraClient = await import('../src/modules/jira/jiraClient.js');
+const { ticketService } = await import('../src/modules/tickets/service.js');
+const jiraClient = await import('../src/integrations/jira/client.js');
 const getProject = vi.mocked(jiraClient.getProject);
 const createIssue = vi.mocked(jiraClient.createIssue);
 const searchAppIssues = vi.mocked(jiraClient.searchAppIssues);

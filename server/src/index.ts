@@ -1,7 +1,7 @@
 import { env } from './config/env.js';
 import './db/connection.js';
 import { createApp } from './app.js';
-import { logger } from './lib/logger.js';
+import { logger } from './utils/logger.js';
 
 const app = createApp();
 
